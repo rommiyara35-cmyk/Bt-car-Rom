@@ -1,0 +1,6 @@
+{
+  "name": "LarkBT Switcher",
+  "description": "Specialized Android Car Head Unit Bluetooth Switcher & RAM Optimizer engineered for ASR Microelectronics lark_evb (ASR8601).",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,18 @@
+<resources>
+    <string name="app_name">LarkBT Switcher</string>
+    <string name="header_title">מנהל בלוטות\'</string>
+    <string name="status_connected">מחובר</string>
+    <string name="status_disconnected">לא מחובר</string>
+    <string name="card_connected_badge">מחובר כעת</string>
+    <string name="card_disconnect_button">ניתוק</string>
+    <string name="card_connect_button">התחבר לטלפון זה</string>
+    <string name="step_1_disconnecting">מנתק את הטלפון הקודם...</string>
+    <string name="step_2_flushing">מרענן את חיבור הבלוטות\'...</string>
+    <string name="step_3_connecting">מתחבר אל %1$s...</string>
+    <string name="step_4_completed">החיבור הושלם!</string>
+    <string name="settings_title">הגדרות בלוטות\'</string>
+    <string name="settings_pair_new">צימוד טלפון חדש</string>
+    <string name="settings_restart_bt">איפוס בלוטות\' מהיר</string>
+    <string name="settings_refresh_ram">רענון זיכרון מערכת</string>
+    <string name="settings_export_apk">ייצוא קוד APK (Export Android Project)</string>
+</resources>
