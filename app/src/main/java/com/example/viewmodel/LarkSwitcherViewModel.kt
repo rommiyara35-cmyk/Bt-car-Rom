@@ -35,6 +35,7 @@ data class LarkUiState(
     val isRestartingBt: Boolean = false,
     val smartSwitchModalState: SmartSwitchModalState = SmartSwitchModalState.Hidden,
     val diagnosticLogs: List<String> = emptyList(),
+    val bluetoothStackDiagnostics: List<String> = emptyList(),
     val isHardwarePreviewMode: Boolean = false,
     val hiddenDeviceCount: Int = 0
 )
@@ -124,7 +125,7 @@ class LarkSwitcherViewModel(application: Application) : AndroidViewModel(applica
     private fun appendDiagnosticLog(message: String) {
         val line = "[${timeFormat.format(Date())}] $message"
         _uiState.update { state ->
-            state.copy(diagnosticLogs = (state.diagnosticLogs + line).takeLast(250))
+            state.copy(diagnosticLogs = (state.diagnosticLogs + line).takeLast(1000))
         }
     }
 
@@ -136,6 +137,7 @@ class LarkSwitcherViewModel(application: Application) : AndroidViewModel(applica
     fun onPermissionsResult() {
         appendDiagnosticLog("onPermissionsResult: re-binding profile proxies")
         hardwareManager.bindAllProfileProxies()
+        hardwareManager.logBluetoothStackDiagnostics("onPermissionsResult")
         syncPairedPhones(force = true)
     }
 
@@ -163,10 +165,12 @@ class LarkSwitcherViewModel(application: Application) : AndroidViewModel(applica
     }
 
     fun openExportModal() {
+        val snapshot = hardwareManager.buildBluetoothStackDiagnosticsSnapshot()
         _uiState.update {
             it.copy(
                 isSettingsSheetOpen = false,
-                isExportModalOpen = true
+                isExportModalOpen = true,
+                bluetoothStackDiagnostics = snapshot
             )
         }
     }
@@ -493,10 +497,13 @@ class LarkSwitcherViewModel(application: Application) : AndroidViewModel(applica
         val hiddenCount = allPhones.count { hiddenIds.contains(it.id) }
         val anyConnected = allPhones.any { it.isConnected }
 
+        val stackSnapshot = hardwareManager.buildBluetoothStackDiagnosticsSnapshot()
+
         _uiState.update {
             it.copy(
                 pairedPhones = visiblePhones,
                 isAnyPhoneConnected = anyConnected,
+                bluetoothStackDiagnostics = stackSnapshot,
                 isHardwarePreviewMode = isPreview,
                 hiddenDeviceCount = hiddenCount
             )

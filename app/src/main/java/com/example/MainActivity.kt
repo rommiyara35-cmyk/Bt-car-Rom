@@ -150,6 +150,7 @@ fun AppleBluetoothSwitcherScreen(
         ExportProjectModalDialog(
             isOpen = uiState.isExportModalOpen,
             diagnosticLogs = uiState.diagnosticLogs,
+            bluetoothStackDiagnostics = uiState.bluetoothStackDiagnostics,
             onDismiss = viewModel::closeExportModal
         )
     }

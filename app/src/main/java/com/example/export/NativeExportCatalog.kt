@@ -9,114 +9,3373 @@ data class ExportableProjectFile(
     val content: String
 )
 
-/**
- * Auto-generated directly from the real project source files on disk.
- */
 object NativeExportCatalog {
     val FILES: List<ExportableProjectFile> = listOf(
         ExportableProjectFile(
             id = "main_activity",
             title = "MainActivity.kt",
             relativePath = "app/src/main/java/com/example/MainActivity.kt",
-            languageBadge = "Kotlin • Activity & RTL Root",
-            description = "Entry point, runtime permissions (API 31+ only), and RTL Compose host.",
-            content = "package com.example\n\nimport android.Manifest\nimport android.os.Build\nimport android.os.Bundle\nimport androidx.activity.ComponentActivity\nimport androidx.activity.compose.BackHandler\nimport androidx.activity.compose.rememberLauncherForActivityResult\nimport androidx.activity.compose.setContent\nimport androidx.activity.enableEdgeToEdge\nimport androidx.activity.result.contract.ActivityResultContracts\nimport androidx.activity.viewModels\nimport androidx.compose.foundation.background\nimport androidx.compose.foundation.layout.Column\nimport androidx.compose.foundation.layout.fillMaxSize\nimport androidx.compose.foundation.layout.padding\nimport androidx.compose.foundation.layout.safeDrawingPadding\nimport androidx.compose.material3.Scaffold\nimport androidx.compose.runtime.Composable\nimport androidx.compose.runtime.CompositionLocalProvider\nimport androidx.compose.runtime.LaunchedEffect\nimport androidx.compose.runtime.getValue\nimport androidx.compose.ui.Modifier\nimport androidx.compose.ui.platform.LocalContext\nimport androidx.compose.ui.platform.LocalLayoutDirection\nimport androidx.compose.ui.unit.LayoutDirection\nimport androidx.lifecycle.compose.collectAsStateWithLifecycle\nimport com.example.ui.components.AppleTopHeader\nimport com.example.ui.components.ExportProjectModalDialog\nimport com.example.ui.components.MinimalSettingsModalSheet\nimport com.example.ui.components.PairedPhonesCenterStage\nimport com.example.ui.components.SmartSwitchPopupOverlay\nimport com.example.ui.theme.MyApplicationTheme\nimport com.example.ui.theme.OledBlack\nimport com.example.viewmodel.LarkSwitcherViewModel\nimport com.example.viewmodel.LarkUiState\n\nclass MainActivity : ComponentActivity() {\n\n    private val viewModel: LarkSwitcherViewModel by viewModels()\n\n    override fun onCreate(savedInstanceState: Bundle?) {\n        super.onCreate(savedInstanceState)\n        enableEdgeToEdge()\n        setContent {\n            MyApplicationTheme {\n                val uiState by viewModel.uiState.collectAsStateWithLifecycle()\n\n                // Request runtime Bluetooth permissions on Android 12+ (API 31+).\n                // On Android 10 & 11, BLUETOOTH and BLUETOOTH_ADMIN are install-time permissions,\n                // and KILL_BACKGROUND_PROCESSES is a normal permission on all versions.\n                val permissionLauncher = rememberLauncherForActivityResult(\n                    contract = ActivityResultContracts.RequestMultiplePermissions()\n                ) {\n                    viewModel.onPermissionsResult()\n                }\n\n                LaunchedEffect(Unit) {\n                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {\n                        permissionLauncher.launch(\n                            arrayOf(\n                                Manifest.permission.BLUETOOTH_CONNECT,\n                                Manifest.permission.BLUETOOTH_SCAN\n                            )\n                        )\n                    } else {\n                        viewModel.onPermissionsResult()\n                    }\n                }\n\n                BackHandler(enabled = uiState.isExportModalOpen || uiState.isSettingsSheetOpen) {\n                    when {\n                        uiState.isExportModalOpen -> viewModel.closeExportModal()\n                        uiState.isSettingsSheetOpen -> viewModel.closeSettingsSheet()\n                    }\n                }\n\n                // Enforce Hebrew RTL Layout Direction across the entire 1280x720 Car Head Unit UI\n                CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {\n                    AppleBluetoothSwitcherScreen(\n                        uiState = uiState,\n                        viewModel = viewModel\n                    )\n                }\n            }\n        }\n    }\n}\n\n@Composable\nfun AppleBluetoothSwitcherScreen(\n    uiState: LarkUiState,\n    viewModel: LarkSwitcherViewModel\n) {\n    val context = LocalContext.current\n\n    Scaffold(\n        modifier = Modifier\n            .fillMaxSize()\n            .background(OledBlack),\n        containerColor = OledBlack\n    ) { innerPadding ->\n        Column(\n            modifier = Modifier\n                .fillMaxSize()\n                .background(OledBlack)\n                .padding(innerPadding)\n                .safeDrawingPadding()\n        ) {\n            // 1. Minimal Top Header (RTL: Title + Status Pill on Right, 🔄 & ⚙️ on Left)\n            AppleTopHeader(\n                isAnyConnected = uiState.isAnyPhoneConnected,\n                isRefreshing = uiState.isRefreshingList,\n                onRefreshClick = viewModel::refreshPairedPhonesWithFeedback,\n                onSettingsClick = viewModel::openSettingsSheet\n            )\n\n            // 2. Center Stage: Large, Side-by-Side Paired Phone Touch Cards\n            PairedPhonesCenterStage(\n                phones = uiState.pairedPhones,\n                hiddenDeviceCount = uiState.hiddenDeviceCount,\n                onConnectClick = viewModel::connectToPhoneSmartSwitch,\n                onDisconnectClick = viewModel::disconnectPhone,\n                onHideDeviceClick = viewModel::hideDevice,\n                onRestoreHiddenDevicesClick = viewModel::restoreAllHiddenDevices,\n                modifier = Modifier.weight(1f)\n            )\n        }\n\n        // 3. Smooth \"Smart Switch\" Glassmorphic Popup Overlay (25% -> 60% -> 90% -> 100%)\n        SmartSwitchPopupOverlay(\n            state = uiState.smartSwitchModalState\n        )\n\n        // 4. Minimal Settings Sheet (Opened via ⚙️ Icon)\n        MinimalSettingsModalSheet(\n            isOpen = uiState.isSettingsSheetOpen,\n            statusBannerHe = uiState.settingsStatusBannerHe,\n            isRestartingBt = uiState.isRestartingBt,\n            hiddenDeviceCount = uiState.hiddenDeviceCount,\n            onDismiss = viewModel::closeSettingsSheet,\n            onPairNewPhoneClick = { viewModel.openNativeBluetoothPairing(context) },\n            onRestartBluetoothClick = viewModel::restartBluetoothAdapter,\n            onRefreshSystemClick = viewModel::refreshSystemMemory,\n            onRestoreHiddenDevicesClick = viewModel::restoreAllHiddenDevices,\n            onOpenExportProjectClick = viewModel::openExportModal\n        )\n\n        // Discrete Export Android APK Project Modal (Opened from Settings Sheet)\n        ExportProjectModalDialog(\n            isOpen = uiState.isExportModalOpen,\n            diagnosticLogs = uiState.diagnosticLogs,\n            onDismiss = viewModel::closeExportModal\n        )\n    }\n}"
+            languageBadge = "Kotlin",
+            description = "Main Activity & 1280x720 RTL Screen Host",
+            content = """package com.example
+
+import android.Manifest
+import android.os.Build
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.material3.Scaffold
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.ui.components.AppleTopHeader
+import com.example.ui.components.ExportProjectModalDialog
+import com.example.ui.components.MinimalSettingsModalSheet
+import com.example.ui.components.PairedPhonesCenterStage
+import com.example.ui.components.SmartSwitchPopupOverlay
+import com.example.ui.theme.MyApplicationTheme
+import com.example.ui.theme.OledBlack
+import com.example.viewmodel.LarkSwitcherViewModel
+import com.example.viewmodel.LarkUiState
+
+class MainActivity : ComponentActivity() {
+
+    private val viewModel: LarkSwitcherViewModel by viewModels()
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
+        setContent {
+            MyApplicationTheme {
+                val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+                // Request runtime Bluetooth permissions on Android 12+ (API 31+).
+                // On Android 10 & 11, BLUETOOTH and BLUETOOTH_ADMIN are install-time permissions,
+                // and KILL_BACKGROUND_PROCESSES is a normal permission on all versions.
+                val permissionLauncher = rememberLauncherForActivityResult(
+                    contract = ActivityResultContracts.RequestMultiplePermissions()
+                ) {
+                    viewModel.onPermissionsResult()
+                }
+
+                LaunchedEffect(Unit) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        permissionLauncher.launch(
+                            arrayOf(
+                                Manifest.permission.BLUETOOTH_CONNECT,
+                                Manifest.permission.BLUETOOTH_SCAN
+                            )
+                        )
+                    } else {
+                        viewModel.onPermissionsResult()
+                    }
+                }
+
+                BackHandler(enabled = uiState.isExportModalOpen || uiState.isSettingsSheetOpen) {
+                    when {
+                        uiState.isExportModalOpen -> viewModel.closeExportModal()
+                        uiState.isSettingsSheetOpen -> viewModel.closeSettingsSheet()
+                    }
+                }
+
+                // Enforce Hebrew RTL Layout Direction across the entire 1280x720 Car Head Unit UI
+                CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+                    AppleBluetoothSwitcherScreen(
+                        uiState = uiState,
+                        viewModel = viewModel
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun AppleBluetoothSwitcherScreen(
+    uiState: LarkUiState,
+    viewModel: LarkSwitcherViewModel
+) {
+    val context = LocalContext.current
+
+    Scaffold(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(OledBlack),
+        containerColor = OledBlack
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(OledBlack)
+                .padding(innerPadding)
+                .safeDrawingPadding()
+        ) {
+            // 1. Minimal Top Header (RTL: Title + Status Pill on Right, 🔄 & ⚙️ on Left)
+            AppleTopHeader(
+                isAnyConnected = uiState.isAnyPhoneConnected,
+                isRefreshing = uiState.isRefreshingList,
+                onRefreshClick = viewModel::refreshPairedPhonesWithFeedback,
+                onSettingsClick = viewModel::openSettingsSheet
+            )
+
+            // 2. Center Stage: Large, Side-by-Side Paired Phone Touch Cards
+            PairedPhonesCenterStage(
+                phones = uiState.pairedPhones,
+                hiddenDeviceCount = uiState.hiddenDeviceCount,
+                onConnectClick = viewModel::connectToPhoneSmartSwitch,
+                onDisconnectClick = viewModel::disconnectPhone,
+                onHideDeviceClick = viewModel::hideDevice,
+                onRestoreHiddenDevicesClick = viewModel::restoreAllHiddenDevices,
+                modifier = Modifier.weight(1f)
+            )
+        }
+
+        // 3. Smooth "Smart Switch" Glassmorphic Popup Overlay (25% -> 60% -> 90% -> 100%)
+        SmartSwitchPopupOverlay(
+            state = uiState.smartSwitchModalState
+        )
+
+        // 4. Minimal Settings Sheet (Opened via ⚙️ Icon)
+        MinimalSettingsModalSheet(
+            isOpen = uiState.isSettingsSheetOpen,
+            statusBannerHe = uiState.settingsStatusBannerHe,
+            isRestartingBt = uiState.isRestartingBt,
+            hiddenDeviceCount = uiState.hiddenDeviceCount,
+            onDismiss = viewModel::closeSettingsSheet,
+            onPairNewPhoneClick = { viewModel.openNativeBluetoothPairing(context) },
+            onRestartBluetoothClick = viewModel::restartBluetoothAdapter,
+            onRefreshSystemClick = viewModel::refreshSystemMemory,
+            onRestoreHiddenDevicesClick = viewModel::restoreAllHiddenDevices,
+            onOpenExportProjectClick = viewModel::openExportModal
+        )
+
+        // Discrete Export Android APK Project Modal (Opened from Settings Sheet)
+        ExportProjectModalDialog(
+            isOpen = uiState.isExportModalOpen,
+            diagnosticLogs = uiState.diagnosticLogs,
+            bluetoothStackDiagnostics = uiState.bluetoothStackDiagnostics,
+            onDismiss = viewModel::closeExportModal
+        )
+    }
+}""",
         ),
         ExportableProjectFile(
             id = "lark_models",
             title = "LarkModels.kt",
             relativePath = "app/src/main/java/com/example/model/LarkModels.kt",
-            languageBadge = "Kotlin • Domain Models",
-            description = "Bluetooth profile constants (1, 2, 11, 12, 16, 17), factory BT packages, and Smart Switch states.",
-            content = "package com.example.model\n\nimport android.bluetooth.BluetoothDevice\n\n/**\n * Standard and hidden Automotive BluetoothProfile IDs used on ASR lark_evb (arm64-v8a):\n * - HEADSET = 1, A2DP = 2\n * - A2DP_SINK = 11, AVRCP_CONTROLLER = 12, HEADSET_CLIENT = 16, PBAP_CLIENT = 17\n */\nobject LarkBtProfiles {\n    const val HEADSET = 1\n    const val A2DP = 2\n    const val A2DP_SINK = 11\n    const val AVRCP_CONTROLLER = 12\n    const val HEADSET_CLIENT = 16\n    const val PBAP_CLIENT = 17\n\n    val ALL_MANAGED_PROFILES = listOf(\n        HEADSET,\n        A2DP,\n        A2DP_SINK,\n        AVRCP_CONTROLLER,\n        HEADSET_CLIENT,\n        PBAP_CLIENT\n    )\n\n    val ACTIVE_CONNECT_CHECK_PROFILES = listOf(\n        HEADSET,\n        A2DP,\n        A2DP_SINK,\n        AVRCP_CONTROLLER,\n        HEADSET_CLIENT\n    )\n\n    val CALL_PROFILES = listOf(HEADSET_CLIENT, HEADSET)\n    val MEDIA_PROFILES = listOf(A2DP_SINK, A2DP, AVRCP_CONTROLLER)\n}\n\n/**\n * Stuck background Bluetooth & CarPlay/AndroidAuto bridge processes on ASR lark_evb head units.\n * Note: \"com.android.bluetooth\" is intentionally excluded so we never kill the core Android BT daemon\n * or invalidate our own bound BluetoothProfile proxies.\n */\nobject FactoryBtPackages {\n    val TARGET_PACKAGES = listOf(\n        \"com.ts.bt\",\n        \"com.asr.bt\",\n        \"com.zjinnova.zlink\",\n        \"com.autochips.bluetooth\",\n        \"com.syu.bt\",\n        \"com.my.bt\"\n    )\n}\n\ndata class PairedPhoneItem(\n    val id: String,\n    val name: String,\n    val isConnected: Boolean,\n    val bluetoothDevice: BluetoothDevice? = null,\n    val isHardwareOnlyPreviewPlaceholder: Boolean = false\n)\n\nsealed class SmartSwitchModalState {\n    data object Hidden : SmartSwitchModalState()\n\n    data class Switching(\n        val targetPhoneName: String,\n        val step: Int, // 1, 2, 3, 4\n        val progressPercent: Int, // 25, 60, 90, 100\n        val statusTextHe: String,\n        val isComplete: Boolean = false,\n        val isFailed: Boolean = false\n    ) : SmartSwitchModalState()\n}"
+            languageBadge = "Kotlin",
+            description = "Bluetooth Profile Constants, Factory Packages & UI Models",
+            content = """package com.example.model
+
+import android.bluetooth.BluetoothDevice
+
+/**
+ * Standard and hidden Automotive BluetoothProfile IDs used on ASR lark_evb (arm64-v8a):
+ * - HEADSET = 1, A2DP = 2
+ * - A2DP_SINK = 11, AVRCP_CONTROLLER = 12, HEADSET_CLIENT = 16, PBAP_CLIENT = 17
+ */
+object LarkBtProfiles {
+    const val HEADSET = 1
+    const val A2DP = 2
+    const val A2DP_SINK = 11
+    const val AVRCP_CONTROLLER = 12
+    const val HEADSET_CLIENT = 16
+    const val PBAP_CLIENT = 17
+
+    val ALL_MANAGED_PROFILES = listOf(
+        HEADSET,
+        A2DP,
+        A2DP_SINK,
+        AVRCP_CONTROLLER,
+        HEADSET_CLIENT,
+        PBAP_CLIENT
+    )
+
+    val ACTIVE_CONNECT_CHECK_PROFILES = listOf(
+        HEADSET,
+        A2DP,
+        A2DP_SINK,
+        AVRCP_CONTROLLER,
+        HEADSET_CLIENT
+    )
+
+    val CALL_PROFILES = listOf(HEADSET_CLIENT, HEADSET)
+    val MEDIA_PROFILES = listOf(A2DP_SINK, A2DP, AVRCP_CONTROLLER)
+}
+
+/**
+ * Stuck background Bluetooth & CarPlay/AndroidAuto bridge processes on ASR lark_evb head units.
+ * Note: "com.android.bluetooth" is intentionally excluded so we never kill the core Android BT daemon
+ * or invalidate our own bound BluetoothProfile proxies.
+ */
+object FactoryBtPackages {
+    val TARGET_PACKAGES = listOf(
+        "com.ts.bt",
+        "com.asr.bt",
+        "com.zjinnova.zlink",
+        "com.autochips.bluetooth",
+        "com.syu.bt",
+        "com.my.bt"
+    )
+}
+
+data class PairedPhoneItem(
+    val id: String,
+    val name: String,
+    val isConnected: Boolean,
+    val bluetoothDevice: BluetoothDevice? = null,
+    val isHardwareOnlyPreviewPlaceholder: Boolean = false
+)
+
+sealed class SmartSwitchModalState {
+    data object Hidden : SmartSwitchModalState()
+
+    data class Switching(
+        val targetPhoneName: String,
+        val step: Int, // 1, 2, 3, 4
+        val progressPercent: Int, // 25, 60, 90, 100
+        val statusTextHe: String,
+        val isComplete: Boolean = false,
+        val isFailed: Boolean = false
+    ) : SmartSwitchModalState()
+}""",
         ),
         ExportableProjectFile(
-            id = "lark_hardware_manager",
+            id = "hardware_manager",
             title = "LarkHardwareManager.kt",
             relativePath = "app/src/main/java/com/example/hardware/LarkHardwareManager.kt",
-            languageBadge = "Kotlin • Native BT & Reflection Engine",
-            description = "BluetoothProfile proxy binder, Java Reflection connect/disconnect, PBAP (17) blocker, and process killer.",
-            content = "package com.example.hardware\n\nimport android.annotation.SuppressLint\nimport android.app.ActivityManager\nimport android.bluetooth.BluetoothAdapter\nimport android.bluetooth.BluetoothDevice\nimport android.bluetooth.BluetoothManager\nimport android.bluetooth.BluetoothProfile\nimport android.content.BroadcastReceiver\nimport android.content.Context\nimport android.content.Intent\nimport android.content.IntentFilter\nimport android.content.pm.PackageManager\nimport android.os.Build\nimport android.util.Log\nimport androidx.core.content.ContextCompat\nimport com.example.model.FactoryBtPackages\nimport com.example.model.LarkBtProfiles\nimport com.example.model.PairedPhoneItem\nimport java.lang.reflect.Method\nimport java.util.concurrent.ConcurrentHashMap\n\n/**\n * Hidden Underlying Native Android Engine for ASR lark_evb (arm64-v8a).\n * Operates behind the clean Apple-inspired UI and records diagnostic logs for every reflection call:\n * - Binds BluetoothProfile proxies (1, 2, 11, 12, 16, 17).\n * - Automatically blocks PBAP_CLIENT (17) so contact sync never freezes the switch.\n * - Kills stuck background Bluetooth/bridge tasks (com.ts.bt, com.asr.bt, com.zjinnova.zlink, etc.) + System.gc().\n * - Uses Java Reflection (disconnect / connect) for sequential profile handoff.\n */\n@SuppressLint(\"MissingPermission\")\nclass LarkHardwareManager(\n    private val context: Context,\n    private val onLog: (String) -> Unit = {},\n    private val onHardwareStateChanged: () -> Unit\n) {\n    private val activityManager: ActivityManager =\n        context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager\n\n    private val bluetoothManager: BluetoothManager? =\n        context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager\n\n    val bluetoothAdapter: BluetoothAdapter? = bluetoothManager?.adapter\n\n    private val profileProxies = ConcurrentHashMap<Int, BluetoothProfile>()\n    private val aclConnectedAddresses = ConcurrentHashMap.newKeySet<String>()\n    private var receiverRegistered = false\n\n    private fun logEvent(msg: String) {\n        Log.i(\"LarkBT\", msg)\n        onLog(msg)\n    }\n\n    private val profileServiceListener = object : BluetoothProfile.ServiceListener {\n        override fun onServiceConnected(profile: Int, proxy: BluetoothProfile) {\n            profileProxies[profile] = proxy\n            logEvent(\"Proxy bound: profile=\$profile class=\${proxy.javaClass.simpleName}\")\n            if (profile == LarkBtProfiles.PBAP_CLIENT) {\n                blockPbapClientOnAllDevices()\n            }\n            onHardwareStateChanged()\n        }\n\n        override fun onServiceDisconnected(profile: Int) {\n            profileProxies.remove(profile)\n            logEvent(\"Proxy unbound: profile=\$profile\")\n            onHardwareStateChanged()\n        }\n    }\n\n    private val bluetoothReceiver = object : BroadcastReceiver() {\n        override fun onReceive(ctx: Context?, intent: Intent?) {\n            val action = intent?.action ?: return\n            val device: BluetoothDevice? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {\n                intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE, BluetoothDevice::class.java)\n            } else {\n                @Suppress(\"DEPRECATION\")\n                intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE)\n            }\n\n            when (action) {\n                BluetoothAdapter.ACTION_STATE_CHANGED -> {\n                    val state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR)\n                    logEvent(\"Broadcast ACTION_STATE_CHANGED: state=\$state\")\n                    if (state == BluetoothAdapter.STATE_ON) {\n                        bindAllProfileProxies()\n                    }\n                    onHardwareStateChanged()\n                }\n\n                BluetoothDevice.ACTION_ACL_CONNECTED -> {\n                    device?.address?.let { aclConnectedAddresses.add(it) }\n                    logEvent(\"Broadcast ACTION_ACL_CONNECTED: device=\${device?.address}\")\n                    if (device != null) {\n                        blockPbapClientForDevice(device)\n                    }\n                    onHardwareStateChanged()\n                }\n\n                BluetoothDevice.ACTION_ACL_DISCONNECTED -> {\n                    device?.address?.let { aclConnectedAddresses.remove(it) }\n                    logEvent(\"Broadcast ACTION_ACL_DISCONNECTED: device=\${device?.address}\")\n                    onHardwareStateChanged()\n                }\n\n                BluetoothAdapter.ACTION_CONNECTION_STATE_CHANGED,\n                \"android.bluetooth.headsetclient.profile.action.CONNECTION_STATE_CHANGED\",\n                \"android.bluetooth.a2dp-sink.profile.action.CONNECTION_STATE_CHANGED\",\n                \"android.bluetooth.avrcp-controller.profile.action.CONNECTION_STATE_CHANGED\",\n                \"android.bluetooth.pbap.profile.action.CONNECTION_STATE_CHANGED\",\n                \"android.bluetooth.pbapclient.profile.action.CONNECTION_STATE_CHANGED\" -> {\n                    val state = intent.getIntExtra(BluetoothProfile.EXTRA_STATE, -1)\n                    val prevState = intent.getIntExtra(BluetoothProfile.EXTRA_PREVIOUS_STATE, -1)\n                    logEvent(\"Broadcast \${action.substringAfterLast('.')}: device=\${device?.address} \$prevState->\$state\")\n                    if (action.contains(\"pbap\", ignoreCase = true) &&\n                        (state == BluetoothProfile.STATE_CONNECTING || state == BluetoothProfile.STATE_CONNECTED) &&\n                        device != null\n                    ) {\n                        blockPbapClientForDevice(device)\n                    }\n                    onHardwareStateChanged()\n                }\n            }\n        }\n    }\n\n    fun initialize() {\n        registerReceivers()\n        bindAllProfileProxies()\n    }\n\n    fun release() {\n        if (receiverRegistered) {\n            runCatching { context.unregisterReceiver(bluetoothReceiver) }\n            receiverRegistered = false\n        }\n        val adapter = bluetoothAdapter ?: return\n        profileProxies.forEach { (id, proxy) ->\n            runCatching { adapter.closeProfileProxy(id, proxy) }\n        }\n        profileProxies.clear()\n    }\n\n    private fun registerReceivers() {\n        if (receiverRegistered) return\n        val filter = IntentFilter().apply {\n            addAction(BluetoothAdapter.ACTION_STATE_CHANGED)\n            addAction(BluetoothAdapter.ACTION_CONNECTION_STATE_CHANGED)\n            addAction(BluetoothDevice.ACTION_ACL_CONNECTED)\n            addAction(BluetoothDevice.ACTION_ACL_DISCONNECTED)\n            addAction(BluetoothDevice.ACTION_BOND_STATE_CHANGED)\n            addAction(\"android.bluetooth.headsetclient.profile.action.CONNECTION_STATE_CHANGED\")\n            addAction(\"android.bluetooth.a2dp-sink.profile.action.CONNECTION_STATE_CHANGED\")\n            addAction(\"android.bluetooth.avrcp-controller.profile.action.CONNECTION_STATE_CHANGED\")\n            addAction(\"android.bluetooth.pbap.profile.action.CONNECTION_STATE_CHANGED\")\n            addAction(\"android.bluetooth.pbapclient.profile.action.CONNECTION_STATE_CHANGED\")\n        }\n        ContextCompat.registerReceiver(\n            context,\n            bluetoothReceiver,\n            filter,\n            ContextCompat.RECEIVER_EXPORTED\n        )\n        receiverRegistered = true\n        logEvent(\"Registered Bluetooth BroadcastReceiver\")\n    }\n\n    fun bindAllProfileProxies() {\n        val adapter = bluetoothAdapter\n        if (adapter == null) {\n            logEvent(\"bindAllProfileProxies: BluetoothAdapter is NULL (Web Preview / Emulator without BT hardware)\")\n            return\n        }\n        if (!hasBluetoothConnectPermission()) {\n            logEvent(\"bindAllProfileProxies: BLUETOOTH_CONNECT permission not granted yet\")\n            return\n        }\n\n        for (profileId in LarkBtProfiles.ALL_MANAGED_PROFILES) {\n            if (!profileProxies.containsKey(profileId)) {\n                try {\n                    val requested = adapter.getProfileProxy(context, profileServiceListener, profileId)\n                    logEvent(\"getProfileProxy(profile=\$profileId) -> requested=\$requested\")\n                } catch (e: Throwable) {\n                    logEvent(\"getProfileProxy(profile=\$profileId) -> exception=\${e.javaClass.simpleName}: \${e.message}\")\n                }\n            }\n        }\n    }\n\n    fun hasBluetoothConnectPermission(): Boolean {\n        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {\n            ContextCompat.checkSelfPermission(\n                context,\n                android.Manifest.permission.BLUETOOTH_CONNECT\n            ) == PackageManager.PERMISSION_GRANTED\n        } else {\n            true\n        }\n    }\n\n    fun queryHardwareBondedPhones(): List<PairedPhoneItem> {\n        val adapter = bluetoothAdapter ?: return emptyList()\n        if (!hasBluetoothConnectPermission()) return emptyList()\n\n        return runCatching {\n            val bonded = adapter.bondedDevices?.toList().orEmpty()\n            val loadedTargetProxies = LarkBtProfiles.ACTIVE_CONNECT_CHECK_PROFILES.mapNotNull { profileId ->\n                profileProxies[profileId]?.let { proxy -> profileId to proxy }\n            }\n\n            bonded.map { device ->\n                val connected = if (loadedTargetProxies.isNotEmpty()) {\n                    var anyProfileConnected = false\n                    for ((profileId, proxy) in loadedTargetProxies) {\n                        try {\n                            val state = proxy.getConnectionState(device)\n                            if (state == BluetoothProfile.STATE_CONNECTED) {\n                                anyProfileConnected = true\n                                break\n                            }\n                        } catch (e: Throwable) {\n                            logEvent(\"getConnectionState(profile=\$profileId, device=\${device.address}) -> exception=\${e.javaClass.simpleName}\")\n                        }\n                    }\n                    anyProfileConnected\n                } else {\n                    // Fallback ONLY while profile proxies (1, 2, 11, 12, 16) are not loaded yet\n                    try {\n                        val isConnectedMethod = device.javaClass.getMethod(\"isConnected\")\n                        val fallbackConnected = isConnectedMethod.invoke(device) as? Boolean == true\n                        logEvent(\"Fallback BluetoothDevice.isConnected(\${device.address}) [proxies not loaded yet] -> \$fallbackConnected\")\n                        fallbackConnected\n                    } catch (e: Throwable) {\n                        logEvent(\"Fallback BluetoothDevice.isConnected(\${device.address}) -> exception=\${e.javaClass.simpleName}\")\n                        false\n                    }\n                }\n\n                PairedPhoneItem(\n                    id = device.address,\n                    name = safeDeviceName(device),\n                    isConnected = connected,\n                    bluetoothDevice = device,\n                    isHardwareOnlyPreviewPlaceholder = false\n                )\n            }.sortedByDescending { it.isConnected }\n        }.getOrDefault(emptyList())\n    }\n\n    /**\n     * Kills stuck background Bluetooth and bridge processes (com.ts.bt, com.asr.bt, com.zjinnova.zlink, etc.)\n     * without touching com.android.bluetooth, and invokes System.gc() to prevent memory freezes.\n     */\n    fun freeSystemMemoryAndKillStuckBtTasks() {\n        for (pkg in FactoryBtPackages.TARGET_PACKAGES) {\n            try {\n                activityManager.killBackgroundProcesses(pkg)\n                logEvent(\"killBackgroundProcesses(\\\"\$pkg\\\") -> dispatched\")\n            } catch (e: Throwable) {\n                logEvent(\"killBackgroundProcesses(\\\"\$pkg\\\") -> failed: \${e.javaClass.simpleName}\")\n            }\n        }\n        System.gc()\n        Runtime.getRuntime().gc()\n        System.runFinalization()\n        logEvent(\"System.gc() completed\")\n    }\n\n    /**\n     * Uses Java Reflection to force-disconnect a specific BluetoothProfile proxy from a BluetoothDevice.\n     */\n    fun reflectDisconnectProfile(profileId: Int, device: BluetoothDevice?): Boolean {\n        if (device == null) {\n            logEvent(\"Reflect disconnect(profile=\$profileId, device=null) -> false [No physical BluetoothDevice in preview]\")\n            return false\n        }\n        val proxy = profileProxies[profileId]\n        if (proxy == null) {\n            logEvent(\"Reflect disconnect(profile=\$profileId, device=\${device.address}) -> false [Proxy not bound]\")\n            return false\n        }\n        return try {\n            val disconnectMethod: Method = proxy.javaClass.getMethod(\n                \"disconnect\",\n                BluetoothDevice::class.java\n            )\n            disconnectMethod.isAccessible = true\n            val result = disconnectMethod.invoke(proxy, device) as? Boolean ?: false\n            logEvent(\"Reflect \${proxy.javaClass.simpleName}.disconnect(profile=\$profileId, device=\${device.address}) -> \$result\")\n            result\n        } catch (e: Throwable) {\n            logEvent(\"Reflect disconnect(profile=\$profileId, device=\${device.address}) -> exception=\${e.javaClass.simpleName}: \${e.message}\")\n            false\n        }\n    }\n\n    /**\n     * Uses Java Reflection to force-connect a specific BluetoothProfile proxy to a BluetoothDevice.\n     */\n    fun reflectConnectProfile(profileId: Int, device: BluetoothDevice?): Boolean {\n        if (device == null) {\n            logEvent(\"Reflect connect(profile=\$profileId, device=null) -> false [No physical BluetoothDevice in preview]\")\n            return false\n        }\n        val proxy = profileProxies[profileId]\n        if (proxy == null) {\n            logEvent(\"Reflect connect(profile=\$profileId, device=\${device.address}) -> false [Proxy not bound]\")\n            return false\n        }\n        return try {\n            val connectMethod: Method = proxy.javaClass.getMethod(\n                \"connect\",\n                BluetoothDevice::class.java\n            )\n            connectMethod.isAccessible = true\n            val result = connectMethod.invoke(proxy, device) as? Boolean ?: false\n            logEvent(\"Reflect \${proxy.javaClass.simpleName}.connect(profile=\$profileId, device=\${device.address}) -> \$result\")\n            result\n        } catch (e: Throwable) {\n            logEvent(\"Reflect connect(profile=\$profileId, device=\${device.address}) -> exception=\${e.javaClass.simpleName}: \${e.message}\")\n            false\n        }\n    }\n\n    /**\n     * Checks whether at least one of profiles 1, 2, 11, 12, or 16 reports STATE_CONNECTED (2)\n     * for the given device. Returns Pair(isConnected, diagnosticBreakdown).\n     */\n    fun checkAnyTargetProfileConnected(device: BluetoothDevice?): Pair<Boolean, String> {\n        if (device == null) {\n            return false to \"device=null (Preview placeholder - requires physical car Bluetooth hardware)\"\n        }\n        if (!hasBluetoothConnectPermission()) {\n            return false to \"BLUETOOTH_CONNECT permission missing\"\n        }\n\n        val stateParts = mutableListOf<String>()\n        var anyConnected = false\n        for (profileId in LarkBtProfiles.ACTIVE_CONNECT_CHECK_PROFILES) {\n            val proxy = profileProxies[profileId]\n            if (proxy == null) {\n                stateParts.add(\"p\$profileId=NO_PROXY\")\n            } else {\n                try {\n                    val state = proxy.getConnectionState(device)\n                    stateParts.add(\"p\$profileId=state(\$state)\")\n                    if (state == BluetoothProfile.STATE_CONNECTED) {\n                        anyConnected = true\n                    }\n                } catch (e: Throwable) {\n                    stateParts.add(\"p\$profileId=ERR(\${e.javaClass.simpleName})\")\n                }\n            }\n        }\n        return anyConnected to stateParts.joinToString(\", \")\n    }\n\n    /**\n     * Force-disconnects all profiles (1, 2, 11, 12, 16, 17) on the specified device.\n     */\n    fun forceDisconnectAllProfiles(device: BluetoothDevice?) {\n        for (profileId in LarkBtProfiles.ALL_MANAGED_PROFILES) {\n            reflectDisconnectProfile(profileId, device)\n        }\n        if (hasBluetoothConnectPermission()) {\n            for ((profileId, proxy) in profileProxies) {\n                runCatching {\n                    proxy.connectedDevices.orEmpty().forEach { activeDev ->\n                        reflectDisconnectProfile(profileId, activeDev)\n                    }\n                }\n            }\n        }\n    }\n\n    /**\n     * Blocks PBAP_CLIENT (17 - contact sync) so it never freezes the 800MB RAM during a phone switch.\n     */\n    fun blockPbapClientForDevice(device: BluetoothDevice?) {\n        if (device == null) {\n            logEvent(\"PBAP Guard (profile=17, device=null) -> skipped [Preview mode]\")\n            return\n        }\n        val proxy = profileProxies[LarkBtProfiles.PBAP_CLIENT]\n        if (proxy == null) {\n            logEvent(\"PBAP Guard (profile=17, device=\${device.address}) -> proxy not bound\")\n            return\n        }\n        runCatching {\n            runCatching {\n                val setPolicy = proxy.javaClass.getMethod(\n                    \"setConnectionPolicy\",\n                    BluetoothDevice::class.java,\n                    Int::class.javaPrimitiveType\n                )\n                val policyRes = setPolicy.invoke(proxy, device, 0) // CONNECTION_POLICY_FORBIDDEN\n                logEvent(\"Reflect \${proxy.javaClass.simpleName}.setConnectionPolicy(\${device.address}, 0) -> \$policyRes\")\n            }.onFailure {\n                runCatching {\n                    val setPriority = proxy.javaClass.getMethod(\n                        \"setPriority\",\n                        BluetoothDevice::class.java,\n                        Int::class.javaPrimitiveType\n                    )\n                    val prioRes = setPriority.invoke(proxy, device, 0) // PRIORITY_OFF\n                    logEvent(\"Reflect \${proxy.javaClass.simpleName}.setPriority(\${device.address}, 0) -> \$prioRes\")\n                }\n            }\n            reflectDisconnectProfile(LarkBtProfiles.PBAP_CLIENT, device)\n        }\n    }\n\n    private fun blockPbapClientOnAllDevices() {\n        if (!hasBluetoothConnectPermission()) return\n        val proxy = profileProxies[LarkBtProfiles.PBAP_CLIENT] ?: return\n        runCatching {\n            proxy.connectedDevices.orEmpty().forEach { device ->\n                blockPbapClientForDevice(device)\n            }\n        }\n    }\n\n    @Suppress(\"DEPRECATION\")\n    fun disableBluetoothAdapter(): Boolean {\n        val adapter = bluetoothAdapter\n        if (adapter == null) {\n            logEvent(\"BluetoothAdapter.disable() -> false [BluetoothAdapter is NULL on this host]\")\n            return false\n        }\n        return try {\n            val result = adapter.disable()\n            logEvent(\"BluetoothAdapter.disable() -> returned \$result\")\n            result\n        } catch (se: SecurityException) {\n            logEvent(\"BluetoothAdapter.disable() -> blocked by SecurityException: \${se.message}\")\n            false\n        } catch (t: Throwable) {\n            logEvent(\"BluetoothAdapter.disable() -> exception \${t.javaClass.simpleName}: \${t.message}\")\n            false\n        }\n    }\n\n    @Suppress(\"DEPRECATION\")\n    fun enableBluetoothAdapter(): Boolean {\n        val adapter = bluetoothAdapter\n        if (adapter == null) {\n            logEvent(\"BluetoothAdapter.enable() -> false [BluetoothAdapter is NULL on this host]\")\n            return false\n        }\n        return try {\n            val result = adapter.enable()\n            logEvent(\"BluetoothAdapter.enable() -> returned \$result\")\n            result\n        } catch (se: SecurityException) {\n            logEvent(\"BluetoothAdapter.enable() -> blocked by SecurityException: \${se.message}\")\n            false\n        } catch (t: Throwable) {\n            logEvent(\"BluetoothAdapter.enable() -> exception \${t.javaClass.simpleName}: \${t.message}\")\n            false\n        }\n    }\n\n    private fun safeDeviceName(device: BluetoothDevice): String {\n        return runCatching {\n            device.name?.takeIf { it.isNotBlank() } ?: \"סמארטפון מותאם\"\n        }.getOrDefault(\"סמארטפון מותאם\")\n    }\n}"
+            languageBadge = "Kotlin",
+            description = "Reflection Engine, Profile Proxies, 250ms Polling & Bluetooth Stack Diagnostics",
+            content = """package com.example.hardware
+
+import android.annotation.SuppressLint
+import android.app.ActivityManager
+import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothDevice
+import android.bluetooth.BluetoothManager
+import android.bluetooth.BluetoothProfile
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.content.pm.ApplicationInfo
+import android.content.pm.PackageManager
+import android.os.Build
+import android.os.Handler
+import android.os.Looper
+import android.util.Log
+import androidx.core.content.ContextCompat
+import com.example.model.FactoryBtPackages
+import com.example.model.LarkBtProfiles
+import com.example.model.PairedPhoneItem
+import java.lang.reflect.Method
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
+
+/**
+ * Hidden Underlying Native Android Engine for ASR lark_evb (arm64-v8a).
+ * Operates behind the clean Apple-inspired UI and records diagnostic logs for every reflection call:
+ * - Binds BluetoothProfile proxies (1, 2, 11, 12, 16, 17).
+ * - Automatically blocks PBAP_CLIENT (17) so contact sync never freezes the switch.
+ * - Kills stuck background Bluetooth/bridge tasks (com.ts.bt, com.asr.bt, com.zjinnova.zlink, etc.) + System.gc().
+ * - Uses Java Reflection (disconnect / connect) for sequential profile handoff.
+ */
+@SuppressLint("MissingPermission")
+class LarkHardwareManager(
+    private val context: Context,
+    private val onLog: (String) -> Unit = {},
+    private val onHardwareStateChanged: () -> Unit
+) {
+    private val activityManager: ActivityManager =
+        context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+
+    private val bluetoothManager: BluetoothManager? =
+        context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
+
+    val bluetoothAdapter: BluetoothAdapter? = bluetoothManager?.adapter
+
+    private val profileProxies = ConcurrentHashMap<Int, BluetoothProfile>()
+    private val aclConnectedAddresses = ConcurrentHashMap.newKeySet<String>()
+    private var receiverRegistered = false
+
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private val diagTimeFormat = SimpleDateFormat("HH:mm:ss.SSS", Locale.US)
+    private val proxyRequestStatus = ConcurrentHashMap<Int, String>()
+    private val proxyCallbackStatus = ConcurrentHashMap<Int, String>()
+    private val proxyCallbackFired = ConcurrentHashMap<Int, Boolean>()
+    private val pendingTimeoutRunnables = ConcurrentHashMap<Int, Runnable>()
+
+    private fun nowTime(): String = diagTimeFormat.format(Date())
+
+    private fun logEvent(msg: String) {
+        Log.i("LarkBT", msg)
+        onLog(msg)
+    }
+
+    private val profileServiceListener = object : BluetoothProfile.ServiceListener {
+        override fun onServiceConnected(profile: Int, proxy: BluetoothProfile) {
+            pendingTimeoutRunnables.remove(profile)?.let { mainHandler.removeCallbacks(it) }
+            val ts = nowTime()
+            proxyCallbackFired[profile] = true
+            proxyCallbackStatus[profile] = "onServiceConnected at ${'$'}ts (class=${'$'}{proxy.javaClass.simpleName})"
+            profileProxies[profile] = proxy
+            logEvent("Proxy bound: profile=${'$'}profile class=${'$'}{proxy.javaClass.simpleName} (onServiceConnected at ${'$'}ts)")
+            if (profile == LarkBtProfiles.PBAP_CLIENT) {
+                blockPbapClientOnAllDevices()
+            }
+            onHardwareStateChanged()
+        }
+
+        override fun onServiceDisconnected(profile: Int) {
+            pendingTimeoutRunnables.remove(profile)?.let { mainHandler.removeCallbacks(it) }
+            val ts = nowTime()
+            proxyCallbackFired[profile] = true
+            proxyCallbackStatus[profile] = "onServiceDisconnected at ${'$'}ts"
+            profileProxies.remove(profile)
+            logEvent("Proxy unbound: profile=${'$'}profile (onServiceDisconnected at ${'$'}ts)")
+            onHardwareStateChanged()
+        }
+    }
+
+    private val bluetoothReceiver = object : BroadcastReceiver() {
+        override fun onReceive(ctx: Context?, intent: Intent?) {
+            val action = intent?.action ?: return
+            val device: BluetoothDevice? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE, BluetoothDevice::class.java)
+            } else {
+                @Suppress("DEPRECATION")
+                intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE)
+            }
+
+            when (action) {
+                BluetoothAdapter.ACTION_STATE_CHANGED -> {
+                    val state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR)
+                    logEvent("Broadcast ACTION_STATE_CHANGED: state=${'$'}state")
+                    if (state == BluetoothAdapter.STATE_ON) {
+                        bindAllProfileProxies()
+                    }
+                    onHardwareStateChanged()
+                }
+
+                BluetoothDevice.ACTION_ACL_CONNECTED -> {
+                    device?.address?.let { aclConnectedAddresses.add(it) }
+                    logEvent("Broadcast ACTION_ACL_CONNECTED: device=${'$'}{device?.address}")
+                    if (device != null) {
+                        blockPbapClientForDevice(device)
+                    }
+                    onHardwareStateChanged()
+                }
+
+                BluetoothDevice.ACTION_ACL_DISCONNECTED -> {
+                    device?.address?.let { aclConnectedAddresses.remove(it) }
+                    logEvent("Broadcast ACTION_ACL_DISCONNECTED: device=${'$'}{device?.address}")
+                    onHardwareStateChanged()
+                }
+
+                BluetoothAdapter.ACTION_CONNECTION_STATE_CHANGED,
+                "android.bluetooth.headsetclient.profile.action.CONNECTION_STATE_CHANGED",
+                "android.bluetooth.a2dp-sink.profile.action.CONNECTION_STATE_CHANGED",
+                "android.bluetooth.avrcp-controller.profile.action.CONNECTION_STATE_CHANGED",
+                "android.bluetooth.pbap.profile.action.CONNECTION_STATE_CHANGED",
+                "android.bluetooth.pbapclient.profile.action.CONNECTION_STATE_CHANGED" -> {
+                    val state = intent.getIntExtra(BluetoothProfile.EXTRA_STATE, -1)
+                    val prevState = intent.getIntExtra(BluetoothProfile.EXTRA_PREVIOUS_STATE, -1)
+                    logEvent("Broadcast ${'$'}{action.substringAfterLast('.')}: device=${'$'}{device?.address} ${'$'}prevState->${'$'}state")
+                    if (action.contains("pbap", ignoreCase = true) &&
+                        (state == BluetoothProfile.STATE_CONNECTING || state == BluetoothProfile.STATE_CONNECTED) &&
+                        device != null
+                    ) {
+                        blockPbapClientForDevice(device)
+                    }
+                    onHardwareStateChanged()
+                }
+            }
+        }
+    }
+
+    fun initialize() {
+        registerReceivers()
+        bindAllProfileProxies()
+        logBluetoothStackDiagnostics("startup")
+    }
+
+    fun release() {
+        pendingTimeoutRunnables.values.forEach { mainHandler.removeCallbacks(it) }
+        pendingTimeoutRunnables.clear()
+        if (receiverRegistered) {
+            runCatching { context.unregisterReceiver(bluetoothReceiver) }
+            receiverRegistered = false
+        }
+        val adapter = bluetoothAdapter ?: return
+        profileProxies.forEach { (id, proxy) ->
+            runCatching { adapter.closeProfileProxy(id, proxy) }
+        }
+        profileProxies.clear()
+    }
+
+    private fun registerReceivers() {
+        if (receiverRegistered) return
+        val filter = IntentFilter().apply {
+            addAction(BluetoothAdapter.ACTION_STATE_CHANGED)
+            addAction(BluetoothAdapter.ACTION_CONNECTION_STATE_CHANGED)
+            addAction(BluetoothDevice.ACTION_ACL_CONNECTED)
+            addAction(BluetoothDevice.ACTION_ACL_DISCONNECTED)
+            addAction(BluetoothDevice.ACTION_BOND_STATE_CHANGED)
+            addAction("android.bluetooth.headsetclient.profile.action.CONNECTION_STATE_CHANGED")
+            addAction("android.bluetooth.a2dp-sink.profile.action.CONNECTION_STATE_CHANGED")
+            addAction("android.bluetooth.avrcp-controller.profile.action.CONNECTION_STATE_CHANGED")
+            addAction("android.bluetooth.pbap.profile.action.CONNECTION_STATE_CHANGED")
+            addAction("android.bluetooth.pbapclient.profile.action.CONNECTION_STATE_CHANGED")
+        }
+        ContextCompat.registerReceiver(
+            context,
+            bluetoothReceiver,
+            filter,
+            ContextCompat.RECEIVER_EXPORTED
+        )
+        receiverRegistered = true
+        logEvent("Registered Bluetooth BroadcastReceiver")
+    }
+
+    private fun scheduleTenSecondCallbackCheck(profileId: Int) {
+        pendingTimeoutRunnables.remove(profileId)?.let { mainHandler.removeCallbacks(it) }
+        val runnable = Runnable {
+            pendingTimeoutRunnables.remove(profileId)
+            if (proxyCallbackFired[profileId] != true) {
+                val ts = nowTime()
+                proxyCallbackStatus[profileId] = "NO CALLBACK after 10s (at ${'$'}ts)"
+                logEvent("[Diag #3] Profile ${'$'}profileId: getProfileProxy=(${'$'}{proxyRequestStatus[profileId] ?: "not called"}) -> NO CALLBACK after 10s (at ${'$'}ts)")
+                onHardwareStateChanged()
+            }
+        }
+        pendingTimeoutRunnables[profileId] = runnable
+        mainHandler.postDelayed(runnable, 10_000L)
+    }
+
+    fun bindAllProfileProxies() {
+        val adapter = bluetoothAdapter
+        if (adapter == null) {
+            val ts = nowTime()
+            logEvent("bindAllProfileProxies: BluetoothAdapter is NULL (Web Preview / Emulator without BT hardware)")
+            for (profileId in LarkBtProfiles.ALL_MANAGED_PROFILES) {
+                proxyCallbackFired.putIfAbsent(profileId, false)
+                proxyRequestStatus[profileId] = "NOT_CALLED (BluetoothAdapter is NULL at ${'$'}ts)"
+                if (!proxyCallbackStatus.containsKey(profileId)) {
+                    proxyCallbackStatus[profileId] = "waiting 10s (started at ${'$'}ts)..."
+                }
+                scheduleTenSecondCallbackCheck(profileId)
+            }
+            return
+        }
+        if (!hasBluetoothConnectPermission()) {
+            val ts = nowTime()
+            logEvent("bindAllProfileProxies: BLUETOOTH_CONNECT permission not granted yet")
+            for (profileId in LarkBtProfiles.ALL_MANAGED_PROFILES) {
+                proxyCallbackFired.putIfAbsent(profileId, false)
+                proxyRequestStatus[profileId] = "SKIPPED (BLUETOOTH_CONNECT denied at ${'$'}ts)"
+                if (!proxyCallbackStatus.containsKey(profileId)) {
+                    proxyCallbackStatus[profileId] = "waiting 10s (started at ${'$'}ts)..."
+                }
+                scheduleTenSecondCallbackCheck(profileId)
+            }
+            return
+        }
+
+        for (profileId in LarkBtProfiles.ALL_MANAGED_PROFILES) {
+            if (!profileProxies.containsKey(profileId)) {
+                val ts = nowTime()
+                proxyCallbackFired[profileId] = false
+                try {
+                    val requested = adapter.getProfileProxy(context, profileServiceListener, profileId)
+                    proxyRequestStatus[profileId] = "returned ${'$'}requested at ${'$'}ts"
+                    proxyCallbackStatus[profileId] = "waiting for callback (10s timer started at ${'$'}ts)..."
+                    logEvent("getProfileProxy(profile=${'$'}profileId) -> requested=${'$'}requested (at ${'$'}ts)")
+                    scheduleTenSecondCallbackCheck(profileId)
+                } catch (e: Throwable) {
+                    proxyRequestStatus[profileId] = "EXCEPTION(${'$'}{e.javaClass.simpleName}: ${'$'}{e.message}) at ${'$'}ts"
+                    proxyCallbackStatus[profileId] = "waiting for callback (10s timer started at ${'$'}ts)..."
+                    logEvent("getProfileProxy(profile=${'$'}profileId) -> exception=${'$'}{e.javaClass.simpleName}: ${'$'}{e.message}")
+                    scheduleTenSecondCallbackCheck(profileId)
+                }
+            }
+        }
+    }
+
+    fun hasBluetoothConnectPermission(): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            ContextCompat.checkSelfPermission(
+                context,
+                android.Manifest.permission.BLUETOOTH_CONNECT
+            ) == PackageManager.PERMISSION_GRANTED
+        } else {
+            true
+        }
+    }
+
+    fun queryHardwareBondedPhones(): List<PairedPhoneItem> {
+        val adapter = bluetoothAdapter ?: return emptyList()
+        if (!hasBluetoothConnectPermission()) return emptyList()
+
+        return runCatching {
+            val bonded = adapter.bondedDevices?.toList().orEmpty()
+            val loadedTargetProxies = LarkBtProfiles.ACTIVE_CONNECT_CHECK_PROFILES.mapNotNull { profileId ->
+                profileProxies[profileId]?.let { proxy -> profileId to proxy }
+            }
+
+            bonded.map { device ->
+                val connected = if (loadedTargetProxies.isNotEmpty()) {
+                    var anyProfileConnected = false
+                    for ((profileId, proxy) in loadedTargetProxies) {
+                        try {
+                            val state = proxy.getConnectionState(device)
+                            if (state == BluetoothProfile.STATE_CONNECTED) {
+                                anyProfileConnected = true
+                                break
+                            }
+                        } catch (e: Throwable) {
+                            logEvent("getConnectionState(profile=${'$'}profileId, device=${'$'}{device.address}) -> exception=${'$'}{e.javaClass.simpleName}")
+                        }
+                    }
+                    anyProfileConnected
+                } else {
+                    // Fallback ONLY while profile proxies (1, 2, 11, 12, 16) are not loaded yet
+                    try {
+                        val isConnectedMethod = device.javaClass.getMethod("isConnected")
+                        val fallbackConnected = isConnectedMethod.invoke(device) as? Boolean == true
+                        logEvent("Fallback BluetoothDevice.isConnected(${'$'}{device.address}) [proxies not loaded yet] -> ${'$'}fallbackConnected")
+                        fallbackConnected
+                    } catch (e: Throwable) {
+                        logEvent("Fallback BluetoothDevice.isConnected(${'$'}{device.address}) -> exception=${'$'}{e.javaClass.simpleName}")
+                        false
+                    }
+                }
+
+                PairedPhoneItem(
+                    id = device.address,
+                    name = safeDeviceName(device),
+                    isConnected = connected,
+                    bluetoothDevice = device,
+                    isHardwareOnlyPreviewPlaceholder = false
+                )
+            }.sortedByDescending { it.isConnected }
+        }.getOrDefault(emptyList())
+    }
+
+    /**
+     * Kills stuck background Bluetooth and bridge processes (com.ts.bt, com.asr.bt, com.zjinnova.zlink, etc.)
+     * without touching com.android.bluetooth, and invokes System.gc() to prevent memory freezes.
+     */
+    fun freeSystemMemoryAndKillStuckBtTasks() {
+        for (pkg in FactoryBtPackages.TARGET_PACKAGES) {
+            try {
+                activityManager.killBackgroundProcesses(pkg)
+                logEvent("killBackgroundProcesses(\"${'$'}pkg\") -> dispatched")
+            } catch (e: Throwable) {
+                logEvent("killBackgroundProcesses(\"${'$'}pkg\") -> failed: ${'$'}{e.javaClass.simpleName}")
+            }
+        }
+        System.gc()
+        Runtime.getRuntime().gc()
+        System.runFinalization()
+        logEvent("System.gc() completed")
+    }
+
+    /**
+     * Uses Java Reflection to force-disconnect a specific BluetoothProfile proxy from a BluetoothDevice.
+     */
+    fun reflectDisconnectProfile(profileId: Int, device: BluetoothDevice?): Boolean {
+        if (device == null) {
+            logEvent("Reflect disconnect(profile=${'$'}profileId, device=null) -> false [No physical BluetoothDevice in preview]")
+            return false
+        }
+        val proxy = profileProxies[profileId]
+        if (proxy == null) {
+            logEvent("Reflect disconnect(profile=${'$'}profileId, device=${'$'}{device.address}) -> false [Proxy not bound]")
+            return false
+        }
+        return try {
+            val disconnectMethod: Method = proxy.javaClass.getMethod(
+                "disconnect",
+                BluetoothDevice::class.java
+            )
+            disconnectMethod.isAccessible = true
+            val result = disconnectMethod.invoke(proxy, device) as? Boolean ?: false
+            logEvent("Reflect ${'$'}{proxy.javaClass.simpleName}.disconnect(profile=${'$'}profileId, device=${'$'}{device.address}) -> ${'$'}result")
+            result
+        } catch (e: Throwable) {
+            logEvent("Reflect disconnect(profile=${'$'}profileId, device=${'$'}{device.address}) -> exception=${'$'}{e.javaClass.simpleName}: ${'$'}{e.message}")
+            false
+        }
+    }
+
+    /**
+     * Uses Java Reflection to force-connect a specific BluetoothProfile proxy to a BluetoothDevice.
+     */
+    fun reflectConnectProfile(profileId: Int, device: BluetoothDevice?): Boolean {
+        if (device == null) {
+            logEvent("Reflect connect(profile=${'$'}profileId, device=null) -> false [No physical BluetoothDevice in preview]")
+            return false
+        }
+        val proxy = profileProxies[profileId]
+        if (proxy == null) {
+            logEvent("Reflect connect(profile=${'$'}profileId, device=${'$'}{device.address}) -> false [Proxy not bound]")
+            return false
+        }
+        return try {
+            val connectMethod: Method = proxy.javaClass.getMethod(
+                "connect",
+                BluetoothDevice::class.java
+            )
+            connectMethod.isAccessible = true
+            val result = connectMethod.invoke(proxy, device) as? Boolean ?: false
+            logEvent("Reflect ${'$'}{proxy.javaClass.simpleName}.connect(profile=${'$'}profileId, device=${'$'}{device.address}) -> ${'$'}result")
+            result
+        } catch (e: Throwable) {
+            logEvent("Reflect connect(profile=${'$'}profileId, device=${'$'}{device.address}) -> exception=${'$'}{e.javaClass.simpleName}: ${'$'}{e.message}")
+            false
+        }
+    }
+
+    /**
+     * Checks whether at least one of profiles 1, 2, 11, 12, or 16 reports STATE_CONNECTED (2)
+     * for the given device. Returns Pair(isConnected, diagnosticBreakdown).
+     */
+    fun checkAnyTargetProfileConnected(device: BluetoothDevice?): Pair<Boolean, String> {
+        if (device == null) {
+            return false to "device=null (Preview placeholder - requires physical car Bluetooth hardware)"
+        }
+        if (!hasBluetoothConnectPermission()) {
+            return false to "BLUETOOTH_CONNECT permission missing"
+        }
+
+        val stateParts = mutableListOf<String>()
+        var anyConnected = false
+        for (profileId in LarkBtProfiles.ACTIVE_CONNECT_CHECK_PROFILES) {
+            val proxy = profileProxies[profileId]
+            if (proxy == null) {
+                stateParts.add("p${'$'}profileId=NO_PROXY")
+            } else {
+                try {
+                    val state = proxy.getConnectionState(device)
+                    stateParts.add("p${'$'}profileId=state(${'$'}state)")
+                    if (state == BluetoothProfile.STATE_CONNECTED) {
+                        anyConnected = true
+                    }
+                } catch (e: Throwable) {
+                    stateParts.add("p${'$'}profileId=ERR(${'$'}{e.javaClass.simpleName})")
+                }
+            }
+        }
+        return anyConnected to stateParts.joinToString(", ")
+    }
+
+    /**
+     * Force-disconnects all profiles (1, 2, 11, 12, 16, 17) on the specified device.
+     */
+    fun forceDisconnectAllProfiles(device: BluetoothDevice?) {
+        for (profileId in LarkBtProfiles.ALL_MANAGED_PROFILES) {
+            reflectDisconnectProfile(profileId, device)
+        }
+        if (hasBluetoothConnectPermission()) {
+            for ((profileId, proxy) in profileProxies) {
+                runCatching {
+                    proxy.connectedDevices.orEmpty().forEach { activeDev ->
+                        reflectDisconnectProfile(profileId, activeDev)
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Blocks PBAP_CLIENT (17 - contact sync) so it never freezes the 800MB RAM during a phone switch.
+     */
+    fun blockPbapClientForDevice(device: BluetoothDevice?) {
+        if (device == null) {
+            logEvent("PBAP Guard (profile=17, device=null) -> skipped [Preview mode]")
+            return
+        }
+        val proxy = profileProxies[LarkBtProfiles.PBAP_CLIENT]
+        if (proxy == null) {
+            logEvent("PBAP Guard (profile=17, device=${'$'}{device.address}) -> proxy not bound")
+            return
+        }
+        runCatching {
+            runCatching {
+                val setPolicy = proxy.javaClass.getMethod(
+                    "setConnectionPolicy",
+                    BluetoothDevice::class.java,
+                    Int::class.javaPrimitiveType
+                )
+                val policyRes = setPolicy.invoke(proxy, device, 0) // CONNECTION_POLICY_FORBIDDEN
+                logEvent("Reflect ${'$'}{proxy.javaClass.simpleName}.setConnectionPolicy(${'$'}{device.address}, 0) -> ${'$'}policyRes")
+            }.onFailure {
+                runCatching {
+                    val setPriority = proxy.javaClass.getMethod(
+                        "setPriority",
+                        BluetoothDevice::class.java,
+                        Int::class.javaPrimitiveType
+                    )
+                    val prioRes = setPriority.invoke(proxy, device, 0) // PRIORITY_OFF
+                    logEvent("Reflect ${'$'}{proxy.javaClass.simpleName}.setPriority(${'$'}{device.address}, 0) -> ${'$'}prioRes")
+                }
+            }
+            reflectDisconnectProfile(LarkBtProfiles.PBAP_CLIENT, device)
+        }
+    }
+
+    private fun blockPbapClientOnAllDevices() {
+        if (!hasBluetoothConnectPermission()) return
+        val proxy = profileProxies[LarkBtProfiles.PBAP_CLIENT] ?: return
+        runCatching {
+            proxy.connectedDevices.orEmpty().forEach { device ->
+                blockPbapClientForDevice(device)
+            }
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    fun disableBluetoothAdapter(): Boolean {
+        val adapter = bluetoothAdapter
+        if (adapter == null) {
+            logEvent("BluetoothAdapter.disable() -> false [BluetoothAdapter is NULL on this host]")
+            return false
+        }
+        return try {
+            val result = adapter.disable()
+            logEvent("BluetoothAdapter.disable() -> returned ${'$'}result")
+            result
+        } catch (se: SecurityException) {
+            logEvent("BluetoothAdapter.disable() -> blocked by SecurityException: ${'$'}{se.message}")
+            false
+        } catch (t: Throwable) {
+            logEvent("BluetoothAdapter.disable() -> exception ${'$'}{t.javaClass.simpleName}: ${'$'}{t.message}")
+            false
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    fun enableBluetoothAdapter(): Boolean {
+        val adapter = bluetoothAdapter
+        if (adapter == null) {
+            logEvent("BluetoothAdapter.enable() -> false [BluetoothAdapter is NULL on this host]")
+            return false
+        }
+        return try {
+            val result = adapter.enable()
+            logEvent("BluetoothAdapter.enable() -> returned ${'$'}result")
+            result
+        } catch (se: SecurityException) {
+            logEvent("BluetoothAdapter.enable() -> blocked by SecurityException: ${'$'}{se.message}")
+            false
+        } catch (t: Throwable) {
+            logEvent("BluetoothAdapter.enable() -> exception ${'$'}{t.javaClass.simpleName}: ${'$'}{t.message}")
+            false
+        }
+    }
+
+    private fun safeDeviceName(device: BluetoothDevice): String {
+        return runCatching {
+            device.name?.takeIf { it.isNotBlank() } ?: "סמארטפון מותאם"
+        }.getOrDefault("סמארטפון מותאם")
+    }
+
+    /**
+     * Builds the read-only 6-point Bluetooth stack diagnostics snapshot with real values or real exceptions.
+     */
+    fun buildBluetoothStackDiagnosticsSnapshot(): List<String> {
+        val lines = mutableListOf<String>()
+
+        // 1. Device identity + ro.build.version.sdk via reflection on android.os.SystemProperties
+        val roBuildVersionSdk = try {
+            val spClass = Class.forName("android.os.SystemProperties")
+            val getMethod = spClass.getMethod("get", String::class.java)
+            val value = getMethod.invoke(null, "ro.build.version.sdk") as? String
+            value ?: "null"
+        } catch (e: Throwable) {
+            "EXCEPTION(${'$'}{e.javaClass.simpleName}: ${'$'}{e.message})"
+        }
+        lines.add(
+            "[1. Device Identity] MANUFACTURER=${'$'}{Build.MANUFACTURER} | MODEL=${'$'}{Build.MODEL} | DEVICE=${'$'}{Build.DEVICE} | HARDWARE=${'$'}{Build.HARDWARE} | BOARD=${'$'}{Build.BOARD}"
+        )
+        lines.add(
+            "[1. Device Identity] VERSION.RELEASE=${'$'}{Build.VERSION.RELEASE} | VERSION.SDK_INT=${'$'}{Build.VERSION.SDK_INT} vs SystemProperties(ro.build.version.sdk)=${'$'}roBuildVersionSdk | FINGERPRINT=${'$'}{Build.FINGERPRINT}"
+        )
+
+        // 2. BluetoothAdapter.getDefaultAdapter(): null or not, isEnabled, state, name
+        @Suppress("DEPRECATION")
+        val defaultAdapterResult = try {
+            val adapter = BluetoothAdapter.getDefaultAdapter()
+            if (adapter == null) {
+                "defaultAdapter=NULL | isEnabled=N/A | state=N/A | name=N/A"
+            } else {
+                val isEnabledStr = try {
+                    adapter.isEnabled.toString()
+                } catch (e: Throwable) {
+                    "EXCEPTION(${'$'}{e.javaClass.simpleName}: ${'$'}{e.message})"
+                }
+                val stateStr = try {
+                    adapter.state.toString()
+                } catch (e: Throwable) {
+                    "EXCEPTION(${'$'}{e.javaClass.simpleName}: ${'$'}{e.message})"
+                }
+                val nameStr = try {
+                    adapter.name ?: "null"
+                } catch (e: Throwable) {
+                    "EXCEPTION(${'$'}{e.javaClass.simpleName}: ${'$'}{e.message})"
+                }
+                "defaultAdapter=NOT_NULL | isEnabled=${'$'}isEnabledStr | state=${'$'}stateStr | name=\"${'$'}nameStr\""
+            }
+        } catch (e: Throwable) {
+            "EXCEPTION(${'$'}{e.javaClass.simpleName}: ${'$'}{e.message})"
+        }
+        lines.add("[2. BluetoothAdapter.getDefaultAdapter()] ${'$'}defaultAdapterResult")
+
+        // 3. Profiles 1, 2, 11, 12, 16, 17: getProfileProxy result + callback within 10s (or NO CALLBACK after 10s)
+        for (profileId in LarkBtProfiles.ALL_MANAGED_PROFILES) {
+            val req = proxyRequestStatus[profileId] ?: "not called yet"
+            val cb = proxyCallbackStatus[profileId] ?: "no callback yet"
+            lines.add("[3. Profile ${'$'}profileId] getProfileProxy=(${'$'}req) | callback=(${'$'}cb)")
+        }
+
+        // 4. PackageManager: installed packages containing bluetooth, bt, blue, lark, asr, zlink, syu
+        val keywords = listOf("bluetooth", "bt", "blue", "lark", "asr", "zlink", "syu")
+        try {
+            val pm = context.packageManager
+            @Suppress("DEPRECATION")
+            val installed = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                pm.getInstalledPackages(PackageManager.PackageInfoFlags.of(0L))
+            } else {
+                pm.getInstalledPackages(0)
+            }
+            val matched = installed.filter { pkgInfo ->
+                val lowerName = pkgInfo.packageName.lowercase(Locale.US)
+                keywords.any { kw -> lowerName.contains(kw) }
+            }.sortedBy { it.packageName }
+
+            if (matched.isEmpty()) {
+                lines.add("[4. PackageManager] 0 matching packages found (scanned ${'$'}{installed.size} visible packages)")
+            } else {
+                lines.add("[4. PackageManager] Found ${'$'}{matched.size} matching packages (scanned ${'$'}{installed.size} visible packages):")
+                for (pkgInfo in matched) {
+                    val flags = pkgInfo.applicationInfo?.flags ?: 0
+                    val isSystem = (flags and ApplicationInfo.FLAG_SYSTEM) != 0
+                    val isUpdatedSystem = (flags and ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0
+                    val verName = pkgInfo.versionName ?: "null"
+                    lines.add(
+                        "[4. PackageManager] package=${'$'}{pkgInfo.packageName} | versionName=${'$'}verName | isSystemApp=${'$'}isSystem (updatedSystem=${'$'}isUpdatedSystem, flags=0x${'$'}{Integer.toHexString(flags)})"
+                    )
+                }
+            }
+        } catch (e: Throwable) {
+            lines.add("[4. PackageManager] EXCEPTION(${'$'}{e.javaClass.simpleName}: ${'$'}{e.message})")
+        }
+
+        // 5. adapter.getBondedDevices(): name, address, device type
+        @Suppress("DEPRECATION")
+        val adapterForBonded = try {
+            BluetoothAdapter.getDefaultAdapter() ?: bluetoothAdapter
+        } catch (_: Throwable) {
+            bluetoothAdapter
+        }
+        if (adapterForBonded == null) {
+            lines.add("[5. adapter.getBondedDevices()] adapter=NULL")
+        } else {
+            try {
+                val bonded = adapterForBonded.bondedDevices
+                if (bonded == null) {
+                    lines.add("[5. adapter.getBondedDevices()] returned NULL")
+                } else if (bonded.isEmpty()) {
+                    lines.add("[5. adapter.getBondedDevices()] returned EMPTY set (0 devices)")
+                } else {
+                    lines.add("[5. adapter.getBondedDevices()] count=${'$'}{bonded.size}:")
+                    for (device in bonded) {
+                        val devName = try {
+                            device.name ?: "null"
+                        } catch (e: Throwable) {
+                            "EXCEPTION(${'$'}{e.javaClass.simpleName}: ${'$'}{e.message})"
+                        }
+                        val devAddress = try {
+                            device.address ?: "null"
+                        } catch (e: Throwable) {
+                            "EXCEPTION(${'$'}{e.javaClass.simpleName}: ${'$'}{e.message})"
+                        }
+                        val devType = try {
+                            when (val t = device.type) {
+                                BluetoothDevice.DEVICE_TYPE_CLASSIC -> "DEVICE_TYPE_CLASSIC(1)"
+                                BluetoothDevice.DEVICE_TYPE_LE -> "DEVICE_TYPE_LE(2)"
+                                BluetoothDevice.DEVICE_TYPE_DUAL -> "DEVICE_TYPE_DUAL(3)"
+                                BluetoothDevice.DEVICE_TYPE_UNKNOWN -> "DEVICE_TYPE_UNKNOWN(0)"
+                                else -> "TYPE(${'$'}t)"
+                            }
+                        } catch (e: Throwable) {
+                            "EXCEPTION(${'$'}{e.javaClass.simpleName}: ${'$'}{e.message})"
+                        }
+                        lines.add("[5. adapter.getBondedDevices()] name=\"${'$'}devName\" | address=${'$'}devAddress | deviceType=${'$'}devType")
+                    }
+                }
+            } catch (e: Throwable) {
+                lines.add("[5. adapter.getBondedDevices()] EXCEPTION(${'$'}{e.javaClass.simpleName}: ${'$'}{e.message})")
+            }
+        }
+
+        // 6. Whether this app runs as a system app (ApplicationInfo.flags & FLAG_SYSTEM) and runtime permissions granted
+        try {
+            val appInfo = context.applicationInfo
+            val flags = appInfo.flags
+            val isSystemApp = (flags and ApplicationInfo.FLAG_SYSTEM) != 0
+            val isUpdatedSystemApp = (flags and ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0
+            lines.add(
+                "[6. App System Flag] package=${'$'}{context.packageName} | (ApplicationInfo.flags & FLAG_SYSTEM)!=0 -> isSystemApp=${'$'}isSystemApp | isUpdatedSystemApp=${'$'}isUpdatedSystemApp | flags=0x${'$'}{Integer.toHexString(flags)}"
+            )
+        } catch (e: Throwable) {
+            lines.add("[6. App System Flag] EXCEPTION(${'$'}{e.javaClass.simpleName}: ${'$'}{e.message})")
+        }
+
+        try {
+            val permsToCheck = listOf(
+                android.Manifest.permission.BLUETOOTH,
+                android.Manifest.permission.BLUETOOTH_ADMIN,
+                android.Manifest.permission.BLUETOOTH_CONNECT,
+                android.Manifest.permission.BLUETOOTH_SCAN,
+                android.Manifest.permission.KILL_BACKGROUND_PROCESSES,
+                android.Manifest.permission.ACCESS_FINE_LOCATION,
+                android.Manifest.permission.ACCESS_COARSE_LOCATION
+            )
+            val permReport = permsToCheck.joinToString(" | ") { perm ->
+                val status = try {
+                    if (ContextCompat.checkSelfPermission(context, perm) == PackageManager.PERMISSION_GRANTED) {
+                        "GRANTED"
+                    } else {
+                        "DENIED"
+                    }
+                } catch (e: Throwable) {
+                    "EXCEPTION(${'$'}{e.javaClass.simpleName})"
+                }
+                "${'$'}{perm.substringAfterLast('.')}=${'$'}status"
+            }
+            lines.add("[6. Granted Permissions] ${'$'}permReport")
+        } catch (e: Throwable) {
+            lines.add("[6. Granted Permissions] EXCEPTION(${'$'}{e.javaClass.simpleName}: ${'$'}{e.message})")
+        }
+
+        return lines
+    }
+
+    fun logBluetoothStackDiagnostics(trigger: String) {
+        logEvent("--- BEGIN Bluetooth stack diagnostics (${'$'}trigger) ---")
+        buildBluetoothStackDiagnosticsSnapshot().forEach { line ->
+            logEvent(line)
+        }
+        logEvent("--- END Bluetooth stack diagnostics (${'$'}trigger) ---")
+    }
+}""",
         ),
         ExportableProjectFile(
-            id = "lark_switcher_viewmodel",
+            id = "switcher_viewmodel",
             title = "LarkSwitcherViewModel.kt",
             relativePath = "app/src/main/java/com/example/viewmodel/LarkSwitcherViewModel.kt",
-            languageBadge = "Kotlin • ViewModel & 250ms Polling",
-            description = "4-step Smart Switch state machine with 250ms x 3500ms STATE_CONNECTED polling, sync pause/resume, and device hiding.",
-            content = "package com.example.viewmodel\n\nimport android.app.Application\nimport android.content.Context\nimport android.content.Intent\nimport android.provider.Settings\nimport androidx.lifecycle.AndroidViewModel\nimport androidx.lifecycle.viewModelScope\nimport com.example.hardware.LarkHardwareManager\nimport com.example.model.LarkBtProfiles\nimport com.example.model.PairedPhoneItem\nimport com.example.model.SmartSwitchModalState\nimport java.text.SimpleDateFormat\nimport java.util.Date\nimport java.util.Locale\nimport java.util.concurrent.atomic.AtomicBoolean\nimport kotlinx.coroutines.Dispatchers\nimport kotlinx.coroutines.Job\nimport kotlinx.coroutines.delay\nimport kotlinx.coroutines.flow.MutableStateFlow\nimport kotlinx.coroutines.flow.StateFlow\nimport kotlinx.coroutines.flow.asStateFlow\nimport kotlinx.coroutines.flow.update\nimport kotlinx.coroutines.isActive\nimport kotlinx.coroutines.launch\nimport kotlinx.coroutines.withContext\n\ndata class LarkUiState(\n    val pairedPhones: List<PairedPhoneItem> = emptyList(),\n    val isAnyPhoneConnected: Boolean = false,\n    val isRefreshingList: Boolean = false,\n    val isSettingsSheetOpen: Boolean = false,\n    val isExportModalOpen: Boolean = false,\n    val settingsStatusBannerHe: String? = null,\n    val isRestartingBt: Boolean = false,\n    val smartSwitchModalState: SmartSwitchModalState = SmartSwitchModalState.Hidden,\n    val diagnosticLogs: List<String> = emptyList(),\n    val isHardwarePreviewMode: Boolean = false,\n    val hiddenDeviceCount: Int = 0\n)\n\nclass LarkSwitcherViewModel(application: Application) : AndroidViewModel(application) {\n\n    private val sharedPrefs = application.applicationContext.getSharedPreferences(\n        \"lark_bt_hidden_devices_prefs\",\n        Context.MODE_PRIVATE\n    )\n\n    private val _uiState = MutableStateFlow(LarkUiState())\n    val uiState: StateFlow<LarkUiState> = _uiState.asStateFlow()\n\n    private val timeFormat = SimpleDateFormat(\"HH:mm:ss.SSS\", Locale.US)\n    private var switchJob: Job? = null\n    private var resetJob: Job? = null\n\n    // Pauses the 2.5s background sync while a Smart Switch or adapter reset is running\n    private val isBackgroundSyncPaused = AtomicBoolean(false)\n\n    // Preview placeholders shown ONLY when host has 0 bonded Bluetooth devices (marked disconnected & hardware-only)\n    private val previewPairedPhones = MutableStateFlow(\n        listOf(\n            PairedPhoneItem(\n                id = \"preview_phone_1\",\n                name = \"iPhone 16 Pro (תצוגה מקדימה - חומרה בלבד)\",\n                isConnected = false,\n                bluetoothDevice = null,\n                isHardwareOnlyPreviewPlaceholder = true\n            ),\n            PairedPhoneItem(\n                id = \"preview_phone_2\",\n                name = \"Samsung Galaxy S24 (תצוגה מקדימה - חומרה בלבד)\",\n                isConnected = false,\n                bluetoothDevice = null,\n                isHardwareOnlyPreviewPlaceholder = true\n            ),\n            PairedPhoneItem(\n                id = \"preview_phone_3\",\n                name = \"Google Pixel 9 Pro (תצוגה מקדימה - חומרה בלבד)\",\n                isConnected = false,\n                bluetoothDevice = null,\n                isHardwareOnlyPreviewPlaceholder = true\n            )\n        )\n    )\n\n    private val hardwareManager = LarkHardwareManager(\n        context = application.applicationContext,\n        onLog = { msg -> appendDiagnosticLog(msg) },\n        onHardwareStateChanged = {\n            if (!isBackgroundSyncPaused.get()) {\n                syncPairedPhones(force = false)\n            }\n        }\n    )\n\n    init {\n        appendDiagnosticLog(\"ViewModel init: initializing LarkHardwareManager\")\n        hardwareManager.initialize()\n        syncPairedPhones(force = true)\n        startBackgroundMonitor()\n    }\n\n    private fun getHiddenDeviceIds(): Set<String> {\n        return sharedPrefs.getStringSet(\"hidden_device_ids\", emptySet())?.toSet().orEmpty()\n    }\n\n    fun hideDevice(phone: PairedPhoneItem) {\n        val updated = getHiddenDeviceIds() + phone.id\n        sharedPrefs.edit().putStringSet(\"hidden_device_ids\", updated).apply()\n        appendDiagnosticLog(\"Hidden device card: \${phone.name} (\${phone.id}) | Total hidden: \${updated.size}\")\n        syncPairedPhones(force = true)\n    }\n\n    fun restoreAllHiddenDevices() {\n        val count = getHiddenDeviceIds().size\n        sharedPrefs.edit().remove(\"hidden_device_ids\").apply()\n        appendDiagnosticLog(\"Restored \$count hidden devices\")\n        _uiState.update {\n            it.copy(settingsStatusBannerHe = \"כל המכשירים המוסתרים שוחזרו\")\n        }\n        syncPairedPhones(force = true)\n    }\n\n    private fun appendDiagnosticLog(message: String) {\n        val line = \"[\${timeFormat.format(Date())}] \$message\"\n        _uiState.update { state ->\n            state.copy(diagnosticLogs = (state.diagnosticLogs + line).takeLast(250))\n        }\n    }\n\n    fun clearDiagnosticLogs() {\n        _uiState.update { it.copy(diagnosticLogs = emptyList()) }\n        appendDiagnosticLog(\"Diagnostic log cleared\")\n    }\n\n    fun onPermissionsResult() {\n        appendDiagnosticLog(\"onPermissionsResult: re-binding profile proxies\")\n        hardwareManager.bindAllProfileProxies()\n        syncPairedPhones(force = true)\n    }\n\n    /**\n     * Top Header Refresh Button (🔄):\n     * Re-binds BluetoothProfile proxies and refreshes the paired phones list.\n     */\n    fun refreshPairedPhonesWithFeedback() {\n        viewModelScope.launch {\n            _uiState.update { it.copy(isRefreshingList = true) }\n            appendDiagnosticLog(\"Manual refresh requested by user\")\n            hardwareManager.bindAllProfileProxies()\n            syncPairedPhones(force = true)\n            delay(500)\n            _uiState.update { it.copy(isRefreshingList = false) }\n        }\n    }\n\n    fun openSettingsSheet() {\n        _uiState.update { it.copy(isSettingsSheetOpen = true, settingsStatusBannerHe = null) }\n    }\n\n    fun closeSettingsSheet() {\n        _uiState.update { it.copy(isSettingsSheetOpen = false, settingsStatusBannerHe = null) }\n    }\n\n    fun openExportModal() {\n        _uiState.update {\n            it.copy(\n                isSettingsSheetOpen = false,\n                isExportModalOpen = true\n            )\n        }\n    }\n\n    fun closeExportModal() {\n        _uiState.update { it.copy(isExportModalOpen = false) }\n    }\n\n    /**\n     * Settings Sheet Button 1: \"צימוד טלפון חדש\" (Pair New Phone)\n     */\n    fun openNativeBluetoothPairing(context: Context) {\n        closeSettingsSheet()\n        appendDiagnosticLog(\"Launching Intent(Settings.ACTION_BLUETOOTH_SETTINGS)\")\n        runCatching {\n            val intent = Intent(Settings.ACTION_BLUETOOTH_SETTINGS).apply {\n                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)\n            }\n            context.startActivity(intent)\n        }.onFailure { e ->\n            appendDiagnosticLog(\"ACTION_BLUETOOTH_SETTINGS failed: \${e.javaClass.simpleName}: \${e.message}\")\n        }\n    }\n\n    /**\n     * Settings Sheet Button 2: \"איפוס בלוטות' מהיר\" (Restart Bluetooth - checks boolean & SecurityException)\n     * Pauses background sync during reset and resumes in finally{}.\n     */\n    fun restartBluetoothAdapter() {\n        if (_uiState.value.isRestartingBt) return\n        resetJob?.cancel()\n        resetJob = viewModelScope.launch {\n            isBackgroundSyncPaused.set(true)\n            appendDiagnosticLog(\"Background 2.5s sync PAUSED for Hard Reset BT Adapter\")\n            try {\n                appendDiagnosticLog(\"Hard Reset BT Adapter requested\")\n                _uiState.update {\n                    it.copy(\n                        isRestartingBt = true,\n                        settingsStatusBannerHe = \"מכבה בלוטות' ומנקה חיבורים תקועים...\"\n                    )\n                }\n\n                val disabledOk = withContext(Dispatchers.IO) {\n                    hardwareManager.freeSystemMemoryAndKillStuckBtTasks()\n                    hardwareManager.disableBluetoothAdapter()\n                }\n\n                if (!disabledOk) {\n                    appendDiagnosticLog(\"Hard Reset FAILED: BluetoothAdapter.disable() returned false or was blocked by OS -> הפעולה נחסמה על ידי המערכת\")\n                    _uiState.update {\n                        it.copy(\n                            isRestartingBt = false,\n                            settingsStatusBannerHe = \"הפעולה נחסמה על ידי המערכת\"\n                        )\n                    }\n                    return@launch\n                }\n\n                delay(3000L)\n                _uiState.update {\n                    it.copy(settingsStatusBannerHe = \"מפעיל מחדש את הבלוטות'...\")\n                }\n\n                val enabledOk = withContext(Dispatchers.IO) {\n                    hardwareManager.enableBluetoothAdapter()\n                }\n\n                if (!enabledOk) {\n                    appendDiagnosticLog(\"Hard Reset FAILED: BluetoothAdapter.enable() returned false or was blocked by OS -> הפעולה נחסמה על ידי המערכת\")\n                    _uiState.update {\n                        it.copy(\n                            isRestartingBt = false,\n                            settingsStatusBannerHe = \"הפעולה נחסמה על ידי המערכת\"\n                        )\n                    }\n                    return@launch\n                }\n\n                delay(600L)\n                hardwareManager.bindAllProfileProxies()\n                appendDiagnosticLog(\"Hard Reset SUCCEEDED: disable()=true, enable()=true\")\n                _uiState.update {\n                    it.copy(\n                        isRestartingBt = false,\n                        settingsStatusBannerHe = \"איפוס הבלוטות' הושלם בהצלחה\"\n                    )\n                }\n            } finally {\n                _uiState.update { it.copy(isRestartingBt = false) }\n                isBackgroundSyncPaused.set(false)\n                appendDiagnosticLog(\"Background 2.5s sync RESUMED after Hard Reset BT Adapter\")\n                syncPairedPhones(force = true)\n            }\n        }\n    }\n\n    /**\n     * Settings Sheet Button 3: \"רענון זיכרון מערכת\" (Refresh System Memory)\n     */\n    fun refreshSystemMemory() {\n        viewModelScope.launch {\n            _uiState.update {\n                it.copy(settingsStatusBannerHe = \"מנקה תהליכי רקע וזיכרון מערכת...\")\n            }\n            withContext(Dispatchers.IO) {\n                hardwareManager.freeSystemMemoryAndKillStuckBtTasks()\n            }\n            delay(450L)\n            _uiState.update {\n                it.copy(settingsStatusBannerHe = \"זיכרון המערכת רוענן בהצלחה\")\n            }\n        }\n    }\n\n    /**\n     * Card Button (\"ניתוק\") on a currently connected phone:\n     * Cleanly disconnects the active phone across all profiles.\n     */\n    fun disconnectPhone(phone: PairedPhoneItem) {\n        viewModelScope.launch {\n            appendDiagnosticLog(\"Manual disconnect requested for \${phone.name} (\${phone.id})\")\n            withContext(Dispatchers.IO) {\n                hardwareManager.forceDisconnectAllProfiles(phone.bluetoothDevice)\n            }\n            syncPairedPhones(force = true)\n        }\n    }\n\n    /**\n     * Card Button (\"התחבר לטלפון זה\") on a disconnected phone card:\n     * Runs the 4-Step Smooth \"Smart Switch\" sequence with honest 250ms x 3500ms STATE_CONNECTED polling.\n     * Pauses the 2.5s background sync while running and resumes it in finally{}.\n     */\n    fun connectToPhoneSmartSwitch(targetPhone: PairedPhoneItem) {\n        if (_uiState.value.smartSwitchModalState is SmartSwitchModalState.Switching) return\n\n        switchJob?.cancel()\n        switchJob = viewModelScope.launch {\n            isBackgroundSyncPaused.set(true)\n            appendDiagnosticLog(\"Background 2.5s sync PAUSED for Smart Switch\")\n            try {\n                appendDiagnosticLog(\"=== Smart Switch START -> Target: \${targetPhone.name} (\${targetPhone.id}) ===\")\n\n                // STEP 1 (25%): \"מנתק את הטלפון הקודם...\"\n                _uiState.update {\n                    it.copy(\n                        smartSwitchModalState = SmartSwitchModalState.Switching(\n                            targetPhoneName = targetPhone.name,\n                            step = 1,\n                            progressPercent = 25,\n                            statusTextHe = \"מנתק את הטלפון הקודם...\",\n                            isComplete = false,\n                            isFailed = false\n                        )\n                    )\n                }\n\n                withContext(Dispatchers.IO) {\n                    // 1a. Free system memory and kill stuck Chinese factory BT/bridge packages\n                    hardwareManager.freeSystemMemoryAndKillStuckBtTasks()\n                    // 1b. Force-disconnect previous active phone across all profiles (1, 2, 11, 12, 16, 17)\n                    val currentlyConnected = _uiState.value.pairedPhones.filter { it.isConnected }\n                    currentlyConnected.forEach { activePhone ->\n                        hardwareManager.forceDisconnectAllProfiles(activePhone.bluetoothDevice)\n                    }\n                    hardwareManager.forceDisconnectAllProfiles(targetPhone.bluetoothDevice)\n                }\n\n                syncPairedPhones(force = true)\n                delay(500L)\n\n                // STEP 2 (60%): \"מרענן את חיבור הבלוטות'...\" (1800ms hardware buffer flush)\n                appendDiagnosticLog(\"Smart Switch Step 2: Waiting 1800ms for ASR lark_evb UART buffer flush...\")\n                _uiState.update {\n                    it.copy(\n                        smartSwitchModalState = SmartSwitchModalState.Switching(\n                            targetPhoneName = targetPhone.name,\n                            step = 2,\n                            progressPercent = 60,\n                            statusTextHe = \"מרענן את חיבור הבלוטות'...\",\n                            isComplete = false,\n                            isFailed = false\n                        )\n                    )\n                }\n                delay(1800L)\n\n                // STEP 3 (90%): \"מתחבר אל [Phone Name]...\"\n                appendDiagnosticLog(\"Smart Switch Step 3: Sequential connect for \${targetPhone.name}\")\n                _uiState.update {\n                    it.copy(\n                        smartSwitchModalState = SmartSwitchModalState.Switching(\n                            targetPhoneName = targetPhone.name,\n                            step = 3,\n                            progressPercent = 90,\n                            statusTextHe = \"מתחבר אל \${targetPhone.name}...\",\n                            isComplete = false,\n                            isFailed = false\n                        )\n                    )\n                }\n\n                val triedProfileResults = LinkedHashMap<Int, Boolean>()\n\n                withContext(Dispatchers.IO) {\n                    // Block PBAP_CLIENT (17) so contact sync never freezes the switch\n                    hardwareManager.blockPbapClientForDevice(targetPhone.bluetoothDevice)\n                    // Connect Calls / HFP first (16 & 1)\n                    for (callProfile in LarkBtProfiles.CALL_PROFILES) {\n                        val res = hardwareManager.reflectConnectProfile(callProfile, targetPhone.bluetoothDevice)\n                        triedProfileResults[callProfile] = res\n                    }\n                }\n\n                // Wait 600ms stagger before connecting Media / A2DP\n                delay(600L)\n\n                withContext(Dispatchers.IO) {\n                    // Connect Media / A2DP (11, 2, 12)\n                    for (mediaProfile in LarkBtProfiles.MEDIA_PROFILES) {\n                        val res = hardwareManager.reflectConnectProfile(mediaProfile, targetPhone.bluetoothDevice)\n                        triedProfileResults[mediaProfile] = res\n                    }\n                    // Re-verify PBAP_CLIENT (17) stays disconnected\n                    hardwareManager.blockPbapClientForDevice(targetPhone.bluetoothDevice)\n                }\n\n                // Poll every 250ms for up to 3500ms until at least one of profiles 1, 2, 11, 12, or 16 reports STATE_CONNECTED\n                val pollIntervalMs = 250L\n                val maxPollMs = 3500L\n                var elapsedPollMs = 0L\n                var verifiedConnected = false\n                var lastStateSummary = \"\"\n\n                while (elapsedPollMs <= maxPollMs) {\n                    val (connectedNow, breakdown) = withContext(Dispatchers.IO) {\n                        hardwareManager.checkAnyTargetProfileConnected(targetPhone.bluetoothDevice)\n                    }\n                    lastStateSummary = breakdown\n                    appendDiagnosticLog(\"Poll +\${elapsedPollMs}ms [\${targetPhone.id}]: connected=\$connectedNow | \$breakdown\")\n                    if (connectedNow) {\n                        verifiedConnected = true\n                        break\n                    }\n                    if (elapsedPollMs < maxPollMs) {\n                        delay(pollIntervalMs)\n                    }\n                    elapsedPollMs += pollIntervalMs\n                }\n\n                syncPairedPhones(force = true)\n\n                if (verifiedConnected) {\n                    appendDiagnosticLog(\"Smart Switch SUCCEEDED for \${targetPhone.name}: \$lastStateSummary\")\n                    _uiState.update {\n                        it.copy(\n                            smartSwitchModalState = SmartSwitchModalState.Switching(\n                                targetPhoneName = targetPhone.name,\n                                step = 4,\n                                progressPercent = 100,\n                                statusTextHe = \"החיבור הושלם!\",\n                                isComplete = true,\n                                isFailed = false\n                            )\n                        )\n                    }\n                    delay(1250L)\n                } else {\n                    val triedSummary = triedProfileResults.entries.joinToString(\", \") {\n                        \"profile(\${it.key})->connect()=\${it.value}\"\n                    }\n                    appendDiagnosticLog(\n                        \"Smart Switch FAILED for \${targetPhone.name} after \${maxPollMs}ms | Tried: [\$triedSummary] | Final states: [\$lastStateSummary]\"\n                    )\n                    _uiState.update {\n                        it.copy(\n                            smartSwitchModalState = SmartSwitchModalState.Switching(\n                                targetPhoneName = targetPhone.name,\n                                step = 4,\n                                progressPercent = 100,\n                                statusTextHe = \"לא ניתן להתחבר, ודא שהבלוטות' בטלפון פעיל\",\n                                isComplete = false,\n                                isFailed = true\n                            )\n                        )\n                    }\n                    delay(2400L)\n                }\n            } finally {\n                _uiState.update {\n                    it.copy(smartSwitchModalState = SmartSwitchModalState.Hidden)\n                }\n                isBackgroundSyncPaused.set(false)\n                appendDiagnosticLog(\"Background 2.5s sync RESUMED after Smart Switch\")\n                syncPairedPhones(force = true)\n            }\n        }\n    }\n\n    private fun startBackgroundMonitor() {\n        viewModelScope.launch {\n            while (isActive) {\n                if (!isBackgroundSyncPaused.get()) {\n                    syncPairedPhones(force = false)\n                }\n                delay(2500L)\n            }\n        }\n    }\n\n    private fun syncPairedPhones(force: Boolean) {\n        if (!force && isBackgroundSyncPaused.get()) return\n\n        val hiddenIds = getHiddenDeviceIds()\n        val hwBonded = hardwareManager.queryHardwareBondedPhones()\n        val isPreview = hwBonded.isEmpty()\n        val allPhones = if (hwBonded.isNotEmpty()) {\n            hwBonded\n        } else {\n            previewPairedPhones.value\n        }\n        val visiblePhones = allPhones.filterNot { hiddenIds.contains(it.id) }\n        val hiddenCount = allPhones.count { hiddenIds.contains(it.id) }\n        val anyConnected = allPhones.any { it.isConnected }\n\n        _uiState.update {\n            it.copy(\n                pairedPhones = visiblePhones,\n                isAnyPhoneConnected = anyConnected,\n                isHardwarePreviewMode = isPreview,\n                hiddenDeviceCount = hiddenCount\n            )\n        }\n    }\n\n    override fun onCleared() {\n        super.onCleared()\n        hardwareManager.release()\n    }\n}"
+            languageBadge = "Kotlin",
+            description = "4-Step Smart Switch State Machine & 1000-Entry Diagnostic Logger",
+            content = """package com.example.viewmodel
+
+import android.app.Application
+import android.content.Context
+import android.content.Intent
+import android.provider.Settings
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import com.example.hardware.LarkHardwareManager
+import com.example.model.LarkBtProfiles
+import com.example.model.PairedPhoneItem
+import com.example.model.SmartSwitchModalState
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
+data class LarkUiState(
+    val pairedPhones: List<PairedPhoneItem> = emptyList(),
+    val isAnyPhoneConnected: Boolean = false,
+    val isRefreshingList: Boolean = false,
+    val isSettingsSheetOpen: Boolean = false,
+    val isExportModalOpen: Boolean = false,
+    val settingsStatusBannerHe: String? = null,
+    val isRestartingBt: Boolean = false,
+    val smartSwitchModalState: SmartSwitchModalState = SmartSwitchModalState.Hidden,
+    val diagnosticLogs: List<String> = emptyList(),
+    val bluetoothStackDiagnostics: List<String> = emptyList(),
+    val isHardwarePreviewMode: Boolean = false,
+    val hiddenDeviceCount: Int = 0
+)
+
+class LarkSwitcherViewModel(application: Application) : AndroidViewModel(application) {
+
+    private val sharedPrefs = application.applicationContext.getSharedPreferences(
+        "lark_bt_hidden_devices_prefs",
+        Context.MODE_PRIVATE
+    )
+
+    private val _uiState = MutableStateFlow(LarkUiState())
+    val uiState: StateFlow<LarkUiState> = _uiState.asStateFlow()
+
+    private val timeFormat = SimpleDateFormat("HH:mm:ss.SSS", Locale.US)
+    private var switchJob: Job? = null
+    private var resetJob: Job? = null
+
+    // Pauses the 2.5s background sync while a Smart Switch or adapter reset is running
+    private val isBackgroundSyncPaused = AtomicBoolean(false)
+
+    // Preview placeholders shown ONLY when host has 0 bonded Bluetooth devices (marked disconnected & hardware-only)
+    private val previewPairedPhones = MutableStateFlow(
+        listOf(
+            PairedPhoneItem(
+                id = "preview_phone_1",
+                name = "iPhone 16 Pro (תצוגה מקדימה - חומרה בלבד)",
+                isConnected = false,
+                bluetoothDevice = null,
+                isHardwareOnlyPreviewPlaceholder = true
+            ),
+            PairedPhoneItem(
+                id = "preview_phone_2",
+                name = "Samsung Galaxy S24 (תצוגה מקדימה - חומרה בלבד)",
+                isConnected = false,
+                bluetoothDevice = null,
+                isHardwareOnlyPreviewPlaceholder = true
+            ),
+            PairedPhoneItem(
+                id = "preview_phone_3",
+                name = "Google Pixel 9 Pro (תצוגה מקדימה - חומרה בלבד)",
+                isConnected = false,
+                bluetoothDevice = null,
+                isHardwareOnlyPreviewPlaceholder = true
+            )
+        )
+    )
+
+    private val hardwareManager = LarkHardwareManager(
+        context = application.applicationContext,
+        onLog = { msg -> appendDiagnosticLog(msg) },
+        onHardwareStateChanged = {
+            if (!isBackgroundSyncPaused.get()) {
+                syncPairedPhones(force = false)
+            }
+        }
+    )
+
+    init {
+        appendDiagnosticLog("ViewModel init: initializing LarkHardwareManager")
+        hardwareManager.initialize()
+        syncPairedPhones(force = true)
+        startBackgroundMonitor()
+    }
+
+    private fun getHiddenDeviceIds(): Set<String> {
+        return sharedPrefs.getStringSet("hidden_device_ids", emptySet())?.toSet().orEmpty()
+    }
+
+    fun hideDevice(phone: PairedPhoneItem) {
+        val updated = getHiddenDeviceIds() + phone.id
+        sharedPrefs.edit().putStringSet("hidden_device_ids", updated).apply()
+        appendDiagnosticLog("Hidden device card: ${'$'}{phone.name} (${'$'}{phone.id}) | Total hidden: ${'$'}{updated.size}")
+        syncPairedPhones(force = true)
+    }
+
+    fun restoreAllHiddenDevices() {
+        val count = getHiddenDeviceIds().size
+        sharedPrefs.edit().remove("hidden_device_ids").apply()
+        appendDiagnosticLog("Restored ${'$'}count hidden devices")
+        _uiState.update {
+            it.copy(settingsStatusBannerHe = "כל המכשירים המוסתרים שוחזרו")
+        }
+        syncPairedPhones(force = true)
+    }
+
+    private fun appendDiagnosticLog(message: String) {
+        val line = "[${'$'}{timeFormat.format(Date())}] ${'$'}message"
+        _uiState.update { state ->
+            state.copy(diagnosticLogs = (state.diagnosticLogs + line).takeLast(1000))
+        }
+    }
+
+    fun clearDiagnosticLogs() {
+        _uiState.update { it.copy(diagnosticLogs = emptyList()) }
+        appendDiagnosticLog("Diagnostic log cleared")
+    }
+
+    fun onPermissionsResult() {
+        appendDiagnosticLog("onPermissionsResult: re-binding profile proxies")
+        hardwareManager.bindAllProfileProxies()
+        hardwareManager.logBluetoothStackDiagnostics("onPermissionsResult")
+        syncPairedPhones(force = true)
+    }
+
+    /**
+     * Top Header Refresh Button (🔄):
+     * Re-binds BluetoothProfile proxies and refreshes the paired phones list.
+     */
+    fun refreshPairedPhonesWithFeedback() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isRefreshingList = true) }
+            appendDiagnosticLog("Manual refresh requested by user")
+            hardwareManager.bindAllProfileProxies()
+            syncPairedPhones(force = true)
+            delay(500)
+            _uiState.update { it.copy(isRefreshingList = false) }
+        }
+    }
+
+    fun openSettingsSheet() {
+        _uiState.update { it.copy(isSettingsSheetOpen = true, settingsStatusBannerHe = null) }
+    }
+
+    fun closeSettingsSheet() {
+        _uiState.update { it.copy(isSettingsSheetOpen = false, settingsStatusBannerHe = null) }
+    }
+
+    fun openExportModal() {
+        val snapshot = hardwareManager.buildBluetoothStackDiagnosticsSnapshot()
+        _uiState.update {
+            it.copy(
+                isSettingsSheetOpen = false,
+                isExportModalOpen = true,
+                bluetoothStackDiagnostics = snapshot
+            )
+        }
+    }
+
+    fun closeExportModal() {
+        _uiState.update { it.copy(isExportModalOpen = false) }
+    }
+
+    /**
+     * Settings Sheet Button 1: "צימוד טלפון חדש" (Pair New Phone)
+     */
+    fun openNativeBluetoothPairing(context: Context) {
+        closeSettingsSheet()
+        appendDiagnosticLog("Launching Intent(Settings.ACTION_BLUETOOTH_SETTINGS)")
+        runCatching {
+            val intent = Intent(Settings.ACTION_BLUETOOTH_SETTINGS).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
+        }.onFailure { e ->
+            appendDiagnosticLog("ACTION_BLUETOOTH_SETTINGS failed: ${'$'}{e.javaClass.simpleName}: ${'$'}{e.message}")
+        }
+    }
+
+    /**
+     * Settings Sheet Button 2: "איפוס בלוטות' מהיר" (Restart Bluetooth - checks boolean & SecurityException)
+     * Pauses background sync during reset and resumes in finally{}.
+     */
+    fun restartBluetoothAdapter() {
+        if (_uiState.value.isRestartingBt) return
+        resetJob?.cancel()
+        resetJob = viewModelScope.launch {
+            isBackgroundSyncPaused.set(true)
+            appendDiagnosticLog("Background 2.5s sync PAUSED for Hard Reset BT Adapter")
+            try {
+                appendDiagnosticLog("Hard Reset BT Adapter requested")
+                _uiState.update {
+                    it.copy(
+                        isRestartingBt = true,
+                        settingsStatusBannerHe = "מכבה בלוטות' ומנקה חיבורים תקועים..."
+                    )
+                }
+
+                val disabledOk = withContext(Dispatchers.IO) {
+                    hardwareManager.freeSystemMemoryAndKillStuckBtTasks()
+                    hardwareManager.disableBluetoothAdapter()
+                }
+
+                if (!disabledOk) {
+                    appendDiagnosticLog("Hard Reset FAILED: BluetoothAdapter.disable() returned false or was blocked by OS -> הפעולה נחסמה על ידי המערכת")
+                    _uiState.update {
+                        it.copy(
+                            isRestartingBt = false,
+                            settingsStatusBannerHe = "הפעולה נחסמה על ידי המערכת"
+                        )
+                    }
+                    return@launch
+                }
+
+                delay(3000L)
+                _uiState.update {
+                    it.copy(settingsStatusBannerHe = "מפעיל מחדש את הבלוטות'...")
+                }
+
+                val enabledOk = withContext(Dispatchers.IO) {
+                    hardwareManager.enableBluetoothAdapter()
+                }
+
+                if (!enabledOk) {
+                    appendDiagnosticLog("Hard Reset FAILED: BluetoothAdapter.enable() returned false or was blocked by OS -> הפעולה נחסמה על ידי המערכת")
+                    _uiState.update {
+                        it.copy(
+                            isRestartingBt = false,
+                            settingsStatusBannerHe = "הפעולה נחסמה על ידי המערכת"
+                        )
+                    }
+                    return@launch
+                }
+
+                delay(600L)
+                hardwareManager.bindAllProfileProxies()
+                appendDiagnosticLog("Hard Reset SUCCEEDED: disable()=true, enable()=true")
+                _uiState.update {
+                    it.copy(
+                        isRestartingBt = false,
+                        settingsStatusBannerHe = "איפוס הבלוטות' הושלם בהצלחה"
+                    )
+                }
+            } finally {
+                _uiState.update { it.copy(isRestartingBt = false) }
+                isBackgroundSyncPaused.set(false)
+                appendDiagnosticLog("Background 2.5s sync RESUMED after Hard Reset BT Adapter")
+                syncPairedPhones(force = true)
+            }
+        }
+    }
+
+    /**
+     * Settings Sheet Button 3: "רענון זיכרון מערכת" (Refresh System Memory)
+     */
+    fun refreshSystemMemory() {
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(settingsStatusBannerHe = "מנקה תהליכי רקע וזיכרון מערכת...")
+            }
+            withContext(Dispatchers.IO) {
+                hardwareManager.freeSystemMemoryAndKillStuckBtTasks()
+            }
+            delay(450L)
+            _uiState.update {
+                it.copy(settingsStatusBannerHe = "זיכרון המערכת רוענן בהצלחה")
+            }
+        }
+    }
+
+    /**
+     * Card Button ("ניתוק") on a currently connected phone:
+     * Cleanly disconnects the active phone across all profiles.
+     */
+    fun disconnectPhone(phone: PairedPhoneItem) {
+        viewModelScope.launch {
+            appendDiagnosticLog("Manual disconnect requested for ${'$'}{phone.name} (${'$'}{phone.id})")
+            withContext(Dispatchers.IO) {
+                hardwareManager.forceDisconnectAllProfiles(phone.bluetoothDevice)
+            }
+            syncPairedPhones(force = true)
+        }
+    }
+
+    /**
+     * Card Button ("התחבר לטלפון זה") on a disconnected phone card:
+     * Runs the 4-Step Smooth "Smart Switch" sequence with honest 250ms x 3500ms STATE_CONNECTED polling.
+     * Pauses the 2.5s background sync while running and resumes it in finally{}.
+     */
+    fun connectToPhoneSmartSwitch(targetPhone: PairedPhoneItem) {
+        if (_uiState.value.smartSwitchModalState is SmartSwitchModalState.Switching) return
+
+        switchJob?.cancel()
+        switchJob = viewModelScope.launch {
+            isBackgroundSyncPaused.set(true)
+            appendDiagnosticLog("Background 2.5s sync PAUSED for Smart Switch")
+            try {
+                appendDiagnosticLog("=== Smart Switch START -> Target: ${'$'}{targetPhone.name} (${'$'}{targetPhone.id}) ===")
+
+                // STEP 1 (25%): "מנתק את הטלפון הקודם..."
+                _uiState.update {
+                    it.copy(
+                        smartSwitchModalState = SmartSwitchModalState.Switching(
+                            targetPhoneName = targetPhone.name,
+                            step = 1,
+                            progressPercent = 25,
+                            statusTextHe = "מנתק את הטלפון הקודם...",
+                            isComplete = false,
+                            isFailed = false
+                        )
+                    )
+                }
+
+                withContext(Dispatchers.IO) {
+                    // 1a. Free system memory and kill stuck Chinese factory BT/bridge packages
+                    hardwareManager.freeSystemMemoryAndKillStuckBtTasks()
+                    // 1b. Force-disconnect previous active phone across all profiles (1, 2, 11, 12, 16, 17)
+                    val currentlyConnected = _uiState.value.pairedPhones.filter { it.isConnected }
+                    currentlyConnected.forEach { activePhone ->
+                        hardwareManager.forceDisconnectAllProfiles(activePhone.bluetoothDevice)
+                    }
+                    hardwareManager.forceDisconnectAllProfiles(targetPhone.bluetoothDevice)
+                }
+
+                syncPairedPhones(force = true)
+                delay(500L)
+
+                // STEP 2 (60%): "מרענן את חיבור הבלוטות'..." (1800ms hardware buffer flush)
+                appendDiagnosticLog("Smart Switch Step 2: Waiting 1800ms for ASR lark_evb UART buffer flush...")
+                _uiState.update {
+                    it.copy(
+                        smartSwitchModalState = SmartSwitchModalState.Switching(
+                            targetPhoneName = targetPhone.name,
+                            step = 2,
+                            progressPercent = 60,
+                            statusTextHe = "מרענן את חיבור הבלוטות'...",
+                            isComplete = false,
+                            isFailed = false
+                        )
+                    )
+                }
+                delay(1800L)
+
+                // STEP 3 (90%): "מתחבר אל [Phone Name]..."
+                appendDiagnosticLog("Smart Switch Step 3: Sequential connect for ${'$'}{targetPhone.name}")
+                _uiState.update {
+                    it.copy(
+                        smartSwitchModalState = SmartSwitchModalState.Switching(
+                            targetPhoneName = targetPhone.name,
+                            step = 3,
+                            progressPercent = 90,
+                            statusTextHe = "מתחבר אל ${'$'}{targetPhone.name}...",
+                            isComplete = false,
+                            isFailed = false
+                        )
+                    )
+                }
+
+                val triedProfileResults = LinkedHashMap<Int, Boolean>()
+
+                withContext(Dispatchers.IO) {
+                    // Block PBAP_CLIENT (17) so contact sync never freezes the switch
+                    hardwareManager.blockPbapClientForDevice(targetPhone.bluetoothDevice)
+                    // Connect Calls / HFP first (16 & 1)
+                    for (callProfile in LarkBtProfiles.CALL_PROFILES) {
+                        val res = hardwareManager.reflectConnectProfile(callProfile, targetPhone.bluetoothDevice)
+                        triedProfileResults[callProfile] = res
+                    }
+                }
+
+                // Wait 600ms stagger before connecting Media / A2DP
+                delay(600L)
+
+                withContext(Dispatchers.IO) {
+                    // Connect Media / A2DP (11, 2, 12)
+                    for (mediaProfile in LarkBtProfiles.MEDIA_PROFILES) {
+                        val res = hardwareManager.reflectConnectProfile(mediaProfile, targetPhone.bluetoothDevice)
+                        triedProfileResults[mediaProfile] = res
+                    }
+                    // Re-verify PBAP_CLIENT (17) stays disconnected
+                    hardwareManager.blockPbapClientForDevice(targetPhone.bluetoothDevice)
+                }
+
+                // Poll every 250ms for up to 3500ms until at least one of profiles 1, 2, 11, 12, or 16 reports STATE_CONNECTED
+                val pollIntervalMs = 250L
+                val maxPollMs = 3500L
+                var elapsedPollMs = 0L
+                var verifiedConnected = false
+                var lastStateSummary = ""
+
+                while (elapsedPollMs <= maxPollMs) {
+                    val (connectedNow, breakdown) = withContext(Dispatchers.IO) {
+                        hardwareManager.checkAnyTargetProfileConnected(targetPhone.bluetoothDevice)
+                    }
+                    lastStateSummary = breakdown
+                    appendDiagnosticLog("Poll +${'$'}{elapsedPollMs}ms [${'$'}{targetPhone.id}]: connected=${'$'}connectedNow | ${'$'}breakdown")
+                    if (connectedNow) {
+                        verifiedConnected = true
+                        break
+                    }
+                    if (elapsedPollMs < maxPollMs) {
+                        delay(pollIntervalMs)
+                    }
+                    elapsedPollMs += pollIntervalMs
+                }
+
+                syncPairedPhones(force = true)
+
+                if (verifiedConnected) {
+                    appendDiagnosticLog("Smart Switch SUCCEEDED for ${'$'}{targetPhone.name}: ${'$'}lastStateSummary")
+                    _uiState.update {
+                        it.copy(
+                            smartSwitchModalState = SmartSwitchModalState.Switching(
+                                targetPhoneName = targetPhone.name,
+                                step = 4,
+                                progressPercent = 100,
+                                statusTextHe = "החיבור הושלם!",
+                                isComplete = true,
+                                isFailed = false
+                            )
+                        )
+                    }
+                    delay(1250L)
+                } else {
+                    val triedSummary = triedProfileResults.entries.joinToString(", ") {
+                        "profile(${'$'}{it.key})->connect()=${'$'}{it.value}"
+                    }
+                    appendDiagnosticLog(
+                        "Smart Switch FAILED for ${'$'}{targetPhone.name} after ${'$'}{maxPollMs}ms | Tried: [${'$'}triedSummary] | Final states: [${'$'}lastStateSummary]"
+                    )
+                    _uiState.update {
+                        it.copy(
+                            smartSwitchModalState = SmartSwitchModalState.Switching(
+                                targetPhoneName = targetPhone.name,
+                                step = 4,
+                                progressPercent = 100,
+                                statusTextHe = "לא ניתן להתחבר, ודא שהבלוטות' בטלפון פעיל",
+                                isComplete = false,
+                                isFailed = true
+                            )
+                        )
+                    }
+                    delay(2400L)
+                }
+            } finally {
+                _uiState.update {
+                    it.copy(smartSwitchModalState = SmartSwitchModalState.Hidden)
+                }
+                isBackgroundSyncPaused.set(false)
+                appendDiagnosticLog("Background 2.5s sync RESUMED after Smart Switch")
+                syncPairedPhones(force = true)
+            }
+        }
+    }
+
+    private fun startBackgroundMonitor() {
+        viewModelScope.launch {
+            while (isActive) {
+                if (!isBackgroundSyncPaused.get()) {
+                    syncPairedPhones(force = false)
+                }
+                delay(2500L)
+            }
+        }
+    }
+
+    private fun syncPairedPhones(force: Boolean) {
+        if (!force && isBackgroundSyncPaused.get()) return
+
+        val hiddenIds = getHiddenDeviceIds()
+        val hwBonded = hardwareManager.queryHardwareBondedPhones()
+        val isPreview = hwBonded.isEmpty()
+        val allPhones = if (hwBonded.isNotEmpty()) {
+            hwBonded
+        } else {
+            previewPairedPhones.value
+        }
+        val visiblePhones = allPhones.filterNot { hiddenIds.contains(it.id) }
+        val hiddenCount = allPhones.count { hiddenIds.contains(it.id) }
+        val anyConnected = allPhones.any { it.isConnected }
+
+        val stackSnapshot = hardwareManager.buildBluetoothStackDiagnosticsSnapshot()
+
+        _uiState.update {
+            it.copy(
+                pairedPhones = visiblePhones,
+                isAnyPhoneConnected = anyConnected,
+                bluetoothStackDiagnostics = stackSnapshot,
+                isHardwarePreviewMode = isPreview,
+                hiddenDeviceCount = hiddenCount
+            )
+        }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        hardwareManager.release()
+    }
+}""",
         ),
         ExportableProjectFile(
             id = "apple_bt_components",
             title = "AppleBluetoothComponents.kt",
             relativePath = "app/src/main/java/com/example/ui/components/AppleBluetoothComponents.kt",
-            languageBadge = "Kotlin • Apple-Style Hebrew RTL UI",
-            description = "Top header, paired phone cards with hide button, AirPods-style Smart Switch glassmorphic popup, and settings modal.",
-            content = "package com.example.ui.components\n\nimport androidx.compose.animation.AnimatedContent\nimport androidx.compose.animation.animateColorAsState\nimport androidx.compose.animation.core.FastOutSlowInEasing\nimport androidx.compose.animation.core.LinearEasing\nimport androidx.compose.animation.core.RepeatMode\nimport androidx.compose.animation.core.animateFloat\nimport androidx.compose.animation.core.animateFloatAsState\nimport androidx.compose.animation.core.infiniteRepeatable\nimport androidx.compose.animation.core.rememberInfiniteTransition\nimport androidx.compose.animation.core.tween\nimport androidx.compose.animation.fadeIn\nimport androidx.compose.animation.fadeOut\nimport androidx.compose.animation.scaleIn\nimport androidx.compose.animation.togetherWith\nimport androidx.compose.foundation.background\nimport androidx.compose.foundation.border\nimport androidx.compose.foundation.clickable\nimport androidx.compose.foundation.layout.Arrangement\nimport androidx.compose.foundation.layout.Box\nimport androidx.compose.foundation.layout.Column\nimport androidx.compose.foundation.layout.PaddingValues\nimport androidx.compose.foundation.layout.Row\nimport androidx.compose.foundation.layout.Spacer\nimport androidx.compose.foundation.layout.fillMaxHeight\nimport androidx.compose.foundation.layout.fillMaxSize\nimport androidx.compose.foundation.layout.fillMaxWidth\nimport androidx.compose.foundation.layout.height\nimport androidx.compose.foundation.layout.padding\nimport androidx.compose.foundation.layout.size\nimport androidx.compose.foundation.layout.width\nimport androidx.compose.foundation.layout.widthIn\nimport androidx.compose.foundation.lazy.LazyRow\nimport androidx.compose.foundation.lazy.items\nimport androidx.compose.foundation.shape.CircleShape\nimport androidx.compose.foundation.shape.RoundedCornerShape\nimport androidx.compose.material.icons.Icons\nimport androidx.compose.material.icons.filled.AddLink\nimport androidx.compose.material.icons.filled.Check\nimport androidx.compose.material.icons.filled.Close\nimport androidx.compose.material.icons.filled.Code\nimport androidx.compose.material.icons.filled.Memory\nimport androidx.compose.material.icons.filled.PhoneIphone\nimport androidx.compose.material.icons.filled.Refresh\nimport androidx.compose.material.icons.filled.RestartAlt\nimport androidx.compose.material.icons.filled.Settings\nimport androidx.compose.material.icons.filled.Visibility\nimport androidx.compose.material.icons.filled.VisibilityOff\nimport androidx.compose.material3.CircularProgressIndicator\nimport androidx.compose.material3.Icon\nimport androidx.compose.material3.MaterialTheme\nimport androidx.compose.material3.Surface\nimport androidx.compose.material3.Text\nimport androidx.compose.runtime.Composable\nimport androidx.compose.runtime.getValue\nimport androidx.compose.ui.Alignment\nimport androidx.compose.ui.Modifier\nimport androidx.compose.ui.draw.clip\nimport androidx.compose.ui.draw.rotate\nimport androidx.compose.ui.draw.shadow\nimport androidx.compose.ui.graphics.Brush\nimport androidx.compose.ui.graphics.Color\nimport androidx.compose.ui.graphics.StrokeCap\nimport androidx.compose.ui.graphics.vector.ImageVector\nimport androidx.compose.ui.platform.testTag\nimport androidx.compose.ui.text.font.FontWeight\nimport androidx.compose.ui.text.style.TextAlign\nimport androidx.compose.ui.text.style.TextOverflow\nimport androidx.compose.ui.unit.dp\nimport androidx.compose.ui.unit.sp\nimport androidx.compose.ui.window.Dialog\nimport androidx.compose.ui.window.DialogProperties\nimport com.example.model.PairedPhoneItem\nimport com.example.model.SmartSwitchModalState\nimport com.example.ui.theme.AppleBlue\nimport com.example.ui.theme.AppleCardBorder\nimport com.example.ui.theme.AppleCardElevated\nimport com.example.ui.theme.AppleCardSurface\nimport com.example.ui.theme.AppleGreen\nimport com.example.ui.theme.AppleMutedGray\nimport com.example.ui.theme.AppleRed\nimport com.example.ui.theme.AppleSubtleButtonBg\nimport com.example.ui.theme.AppleWhite\nimport com.example.ui.theme.OledBlack\n\n/**\n * 1. Minimal Top Header (RTL Layout):\n * - Right side (Start in RTL): Bold title \"מנהל בלוטות'\" + Single status pill (\"מחובר\" Green or \"לא מחובר\" Gray).\n * - Left side (End in RTL): Two simple circular icon buttons: Refresh (🔄) and Settings (⚙️).\n */\n@Composable\nfun AppleTopHeader(\n    isAnyConnected: Boolean,\n    isRefreshing: Boolean,\n    onRefreshClick: () -> Unit,\n    onSettingsClick: () -> Unit,\n    modifier: Modifier = Modifier\n) {\n    val rotationAngle by animateFloatAsState(\n        targetValue = if (isRefreshing) 360f else 0f,\n        animationSpec = tween(durationMillis = 500, easing = FastOutSlowInEasing),\n        label = \"refreshRotation\"\n    )\n\n    Row(\n        modifier = modifier\n            .fillMaxWidth()\n            .padding(horizontal = 36.dp, vertical = 22.dp)\n            .testTag(\"apple_top_header\"),\n        horizontalArrangement = Arrangement.SpaceBetween,\n        verticalAlignment = Alignment.CenterVertically\n    ) {\n        // Right Side (Start in RTL): Title + Single Status Pill\n        Row(\n            verticalAlignment = Alignment.CenterVertically,\n            horizontalArrangement = Arrangement.spacedBy(16.dp)\n        ) {\n            Text(\n                text = \"מנהל בלוטות'\",\n                style = MaterialTheme.typography.headlineLarge.copy(\n                    fontSize = 32.sp,\n                    fontWeight = FontWeight.Bold\n                ),\n                color = AppleWhite\n            )\n\n            ConnectionStatusPill(isConnected = isAnyConnected)\n        }\n\n        // Left Side (End in RTL): Two Circular Icon Buttons (🔄 Refresh & ⚙️ Settings)\n        Row(\n            verticalAlignment = Alignment.CenterVertically,\n            horizontalArrangement = Arrangement.spacedBy(14.dp)\n        ) {\n            CircularHeaderIconButton(\n                icon = Icons.Default.Refresh,\n                contentDescription = \"רענון רשימת טלפונים\",\n                onClick = onRefreshClick,\n                iconModifier = Modifier.rotate(rotationAngle),\n                testTag = \"btn_refresh_phones\"\n            )\n\n            CircularHeaderIconButton(\n                icon = Icons.Default.Settings,\n                contentDescription = \"הגדרות בלוטות'\",\n                onClick = onSettingsClick,\n                testTag = \"btn_open_settings\"\n            )\n        }\n    }\n}\n\n@Composable\nprivate fun ConnectionStatusPill(isConnected: Boolean) {\n    val infiniteTransition = rememberInfiniteTransition(label = \"glowPulse\")\n    val glowAlpha by infiniteTransition.animateFloat(\n        initialValue = 0.45f,\n        targetValue = 1.0f,\n        animationSpec = infiniteRepeatable(\n            animation = tween(1400, easing = FastOutSlowInEasing),\n            repeatMode = RepeatMode.Reverse\n        ),\n        label = \"dotGlow\"\n    )\n\n    val pillColor by animateColorAsState(\n        targetValue = if (isConnected) AppleGreen.copy(alpha = 0.16f) else AppleCardSurface,\n        label = \"pillBg\"\n    )\n    val borderColor by animateColorAsState(\n        targetValue = if (isConnected) AppleGreen.copy(alpha = 0.45f) else AppleCardBorder,\n        label = \"pillBorder\"\n    )\n    val dotColor = if (isConnected) AppleGreen else AppleMutedGray\n    val labelText = if (isConnected) \"מחובר\" else \"לא מחובר\"\n\n    Row(\n        modifier = Modifier\n            .clip(CircleShape)\n            .background(pillColor)\n            .border(1.dp, borderColor, CircleShape)\n            .padding(horizontal = 16.dp, vertical = 8.dp)\n            .testTag(\"header_status_pill\"),\n        verticalAlignment = Alignment.CenterVertically,\n        horizontalArrangement = Arrangement.spacedBy(8.dp)\n    ) {\n        Box(contentAlignment = Alignment.Center) {\n            if (isConnected) {\n                Box(\n                    modifier = Modifier\n                        .size(14.dp)\n                        .clip(CircleShape)\n                        .background(AppleGreen.copy(alpha = glowAlpha * 0.35f))\n                )\n            }\n            Box(\n                modifier = Modifier\n                    .size(8.dp)\n                    .clip(CircleShape)\n                    .background(dotColor)\n            )\n        }\n        Text(\n            text = labelText,\n            style = MaterialTheme.typography.labelLarge.copy(fontSize = 15.sp),\n            color = if (isConnected) AppleGreen else AppleMutedGray\n        )\n    }\n}\n\n@Composable\nprivate fun CircularHeaderIconButton(\n    icon: ImageVector,\n    contentDescription: String,\n    onClick: () -> Unit,\n    iconModifier: Modifier = Modifier,\n    testTag: String\n) {\n    Box(\n        modifier = Modifier\n            .size(54.dp)\n            .clip(CircleShape)\n            .background(AppleCardSurface)\n            .border(1.dp, AppleCardBorder, CircleShape)\n            .clickable(onClick = onClick)\n            .testTag(testTag),\n        contentAlignment = Alignment.Center\n    ) {\n        Icon(\n            imageVector = icon,\n            contentDescription = contentDescription,\n            tint = AppleWhite,\n            modifier = iconModifier.size(24.dp)\n        )\n    }\n}\n\n/**\n * 2. Center Stage: Big Side-by-Side Paired Phone Cards (BluetoothAdapter.bondedDevices)\n * Each card contains ONLY 3 clean elements + small hide action:\n * 1) Sleek Smartphone Vector Icon at the top\n * 2) Phone Name in large, bold, high-contrast white text\n * 3) Status & Single Action Button:\n *    - Connected: Green badge \"מחובר כעת\" + subtle dark button \"ניתוק\"\n *    - Disconnected: Full-width Apple-Blue button \"התחבר לטלפון זה\"\n */\n@Composable\nfun PairedPhonesCenterStage(\n    phones: List<PairedPhoneItem>,\n    hiddenDeviceCount: Int,\n    onConnectClick: (PairedPhoneItem) -> Unit,\n    onDisconnectClick: (PairedPhoneItem) -> Unit,\n    onHideDeviceClick: (PairedPhoneItem) -> Unit,\n    onRestoreHiddenDevicesClick: () -> Unit,\n    modifier: Modifier = Modifier\n) {\n    Box(\n        modifier = modifier\n            .fillMaxSize()\n            .padding(horizontal = 36.dp, vertical = 12.dp),\n        contentAlignment = Alignment.Center\n    ) {\n        if (phones.isEmpty() && hiddenDeviceCount > 0) {\n            Row(\n                modifier = Modifier\n                    .clip(RoundedCornerShape(16.dp))\n                    .background(AppleCardSurface)\n                    .border(1.dp, AppleCardBorder, RoundedCornerShape(16.dp))\n                    .clickable(onClick = onRestoreHiddenDevicesClick)\n                    .padding(horizontal = 24.dp, vertical = 14.dp)\n                    .testTag(\"btn_restore_hidden_empty_state\"),\n                verticalAlignment = Alignment.CenterVertically,\n                horizontalArrangement = Arrangement.spacedBy(10.dp)\n            ) {\n                Icon(\n                    imageVector = Icons.Default.Visibility,\n                    contentDescription = \"הצג מכשירים מוסתרים\",\n                    tint = AppleBlue,\n                    modifier = Modifier.size(22.dp)\n                )\n                Text(\n                    text = \"הצג מכשירים מוסתרים (\$hiddenDeviceCount)\",\n                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),\n                    color = AppleWhite\n                )\n            }\n        } else {\n            LazyRow(\n                modifier = Modifier\n                    .fillMaxWidth()\n                    .testTag(\"paired_phones_row\"),\n                horizontalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterHorizontally),\n                verticalAlignment = Alignment.CenterVertically,\n                contentPadding = PaddingValues(vertical = 8.dp)\n            ) {\n                items(phones, key = { it.id }) { phone ->\n                    ApplePairedPhoneCard(\n                        phone = phone,\n                        onConnectClick = { onConnectClick(phone) },\n                        onDisconnectClick = { onDisconnectClick(phone) },\n                        onHideClick = { onHideDeviceClick(phone) }\n                    )\n                }\n            }\n        }\n    }\n}\n\n@Composable\nprivate fun ApplePairedPhoneCard(\n    phone: PairedPhoneItem,\n    onConnectClick: () -> Unit,\n    onDisconnectClick: () -> Unit,\n    onHideClick: () -> Unit\n) {\n    val isConnected = phone.isConnected\n    val borderColor by animateColorAsState(\n        targetValue = if (isConnected) AppleGreen.copy(alpha = 0.65f) else AppleCardBorder,\n        animationSpec = tween(300),\n        label = \"cardBorder\"\n    )\n\n    Box(\n        modifier = Modifier\n            .width(345.dp)\n            .height(360.dp)\n            .shadow(\n                elevation = if (isConnected) 20.dp else 8.dp,\n                shape = RoundedCornerShape(24.dp),\n                spotColor = if (isConnected) AppleGreen.copy(alpha = 0.25f) else Color.Black\n            )\n            .clip(RoundedCornerShape(24.dp))\n            .background(AppleCardSurface)\n            .border(\n                width = if (isConnected) 1.8.dp else 1.dp,\n                color = borderColor,\n                shape = RoundedCornerShape(24.dp)\n            )\n            .testTag(\"phone_card_\${phone.id}\")\n    ) {\n        // Small unobtrusive \"hide this device\" action in top-end corner\n        Box(\n            modifier = Modifier\n                .align(Alignment.TopEnd)\n                .padding(14.dp)\n                .size(32.dp)\n                .clip(CircleShape)\n                .background(AppleSubtleButtonBg.copy(alpha = 0.7f))\n                .clickable(onClick = onHideClick)\n                .testTag(\"btn_hide_device_\${phone.id}\"),\n            contentAlignment = Alignment.Center\n        ) {\n            Icon(\n                imageVector = Icons.Default.VisibilityOff,\n                contentDescription = \"הסתר מכשיר זה\",\n                tint = AppleMutedGray,\n                modifier = Modifier.size(16.dp)\n            )\n        }\n\n        Column(\n            modifier = Modifier\n                .fillMaxSize()\n                .padding(horizontal = 26.dp, vertical = 28.dp),\n            horizontalAlignment = Alignment.CenterHorizontally,\n            verticalArrangement = Arrangement.SpaceBetween\n        ) {\n            // Element 1: Sleek Smartphone Vector Icon at the top\n            Box(\n                modifier = Modifier\n                    .size(84.dp)\n                    .clip(CircleShape)\n                    .background(\n                        if (isConnected) {\n                            Brush.radialGradient(\n                                colors = listOf(\n                                    AppleGreen.copy(alpha = 0.24f),\n                                    AppleCardElevated\n                                )\n                            )\n                        } else {\n                            Brush.radialGradient(\n                                colors = listOf(\n                                    AppleBlue.copy(alpha = 0.16f),\n                                    AppleCardElevated\n                                )\n                            )\n                        }\n                    )\n                    .border(\n                        width = 1.dp,\n                        color = if (isConnected) AppleGreen.copy(alpha = 0.45f) else AppleCardBorder,\n                        shape = CircleShape\n                    ),\n                contentAlignment = Alignment.Center\n            ) {\n                Icon(\n                    imageVector = Icons.Default.PhoneIphone,\n                    contentDescription = phone.name,\n                    tint = if (isConnected) AppleGreen else AppleWhite,\n                    modifier = Modifier.size(42.dp)\n                )\n            }\n\n            // Element 2: Phone Name in large, bold, high-contrast white text\n            Text(\n                text = phone.name,\n                style = MaterialTheme.typography.headlineMedium.copy(\n                    fontSize = 25.sp,\n                    fontWeight = FontWeight.Bold\n                ),\n                color = AppleWhite,\n                textAlign = TextAlign.Center,\n                maxLines = 2,\n                overflow = TextOverflow.Ellipsis,\n                modifier = Modifier.padding(horizontal = 6.dp)\n            )\n\n            // Element 3: Status & Single Action Button\n            if (isConnected) {\n                Column(\n                    modifier = Modifier.fillMaxWidth(),\n                    horizontalAlignment = Alignment.CenterHorizontally,\n                    verticalArrangement = Arrangement.spacedBy(12.dp)\n                ) {\n                    // Green badge \"מחובר כעת\"\n                    Row(\n                        modifier = Modifier\n                            .clip(CircleShape)\n                            .background(AppleGreen.copy(alpha = 0.16f))\n                            .border(1.dp, AppleGreen.copy(alpha = 0.45f), CircleShape)\n                            .padding(horizontal = 16.dp, vertical = 6.dp),\n                        verticalAlignment = Alignment.CenterVertically,\n                        horizontalArrangement = Arrangement.spacedBy(8.dp)\n                    ) {\n                        Box(\n                            modifier = Modifier\n                                .size(8.dp)\n                                .clip(CircleShape)\n                                .background(AppleGreen)\n                        )\n                        Text(\n                            text = \"מחובר כעת\",\n                            style = MaterialTheme.typography.labelLarge.copy(fontSize = 15.sp),\n                            color = AppleGreen\n                        )\n                    }\n\n                    // Subtle dark button \"ניתוק\"\n                    Box(\n                        modifier = Modifier\n                            .fillMaxWidth()\n                            .height(56.dp)\n                            .clip(RoundedCornerShape(16.dp))\n                            .background(AppleSubtleButtonBg)\n                            .border(1.dp, AppleCardBorder, RoundedCornerShape(16.dp))\n                            .clickable(onClick = onDisconnectClick)\n                            .testTag(\"btn_disconnect_\${phone.id}\"),\n                        contentAlignment = Alignment.Center\n                    ) {\n                        Text(\n                            text = \"ניתוק\",\n                            style = MaterialTheme.typography.titleMedium.copy(\n                                fontSize = 18.sp,\n                                fontWeight = FontWeight.Bold\n                            ),\n                            color = AppleMutedGray\n                        )\n                    }\n                }\n            } else {\n                // Disconnected: Prominent, full-width Apple-Blue button \"התחבר לטלפון זה\"\n                Column(\n                    modifier = Modifier.fillMaxWidth(),\n                    horizontalAlignment = Alignment.CenterHorizontally,\n                    verticalArrangement = Arrangement.Bottom\n                ) {\n                    Spacer(modifier = Modifier.height(36.dp))\n                    Box(\n                        modifier = Modifier\n                            .fillMaxWidth()\n                            .height(60.dp)\n                            .shadow(\n                                elevation = 10.dp,\n                                shape = RoundedCornerShape(16.dp),\n                                spotColor = AppleBlue.copy(alpha = 0.4f)\n                            )\n                            .clip(RoundedCornerShape(16.dp))\n                            .background(AppleBlue)\n                            .clickable(onClick = onConnectClick)\n                            .testTag(\"btn_connect_\${phone.id}\"),\n                        contentAlignment = Alignment.Center\n                    ) {\n                        Text(\n                            text = \"התחבר לטלפון זה\",\n                            style = MaterialTheme.typography.titleMedium.copy(\n                                fontSize = 18.sp,\n                                fontWeight = FontWeight.Bold\n                            ),\n                            color = AppleWhite\n                        )\n                    }\n                }\n            }\n        }\n    }\n}\n\n/**\n * 3. Smooth \"Smart Switch\" Glassmorphic Popup Overlay (AirPods connection sheet style):\n * - Step 1 (25%): \"מנתק את הטלפון הקודם...\"\n * - Step 2 (60%): \"מרענן את חיבור הבלוטות'...\"\n * - Step 3 (90%): \"מתחבר אל [Phone Name]...\"\n * - Step 4 (100%): Polls every 250ms up to 3500ms for STATE_CONNECTED on profiles 1, 2, 11, 12, or 16:\n *   - Success: Animated Green Checkmark \"החיבור הושלם!\"\n *   - Failure: Red Icon \"לא ניתן להתחבר, ודא שהבלוטות' בטלפון פעיל\"\n */\n@Composable\nfun SmartSwitchPopupOverlay(\n    state: SmartSwitchModalState\n) {\n    if (state !is SmartSwitchModalState.Switching) return\n\n    val animatedProgress by animateFloatAsState(\n        targetValue = state.progressPercent / 100f,\n        animationSpec = tween(durationMillis = 420, easing = FastOutSlowInEasing),\n        label = \"ringProgress\"\n    )\n\n    val ringColor = when {\n        state.isFailed -> AppleRed\n        state.isComplete -> AppleGreen\n        else -> AppleBlue\n    }\n\n    Dialog(\n        onDismissRequest = { /* Modal is non-dismissable during active switch */ },\n        properties = DialogProperties(\n            dismissOnBackPress = false,\n            dismissOnClickOutside = false,\n            usePlatformDefaultWidth = false\n        )\n    ) {\n        Box(\n            modifier = Modifier\n                .fillMaxSize()\n                .background(OledBlack.copy(alpha = 0.72f))\n                .testTag(\"smart_switch_popup_overlay\"),\n            contentAlignment = Alignment.Center\n        ) {\n            Column(\n                modifier = Modifier\n                    .width(420.dp)\n                    .shadow(28.dp, RoundedCornerShape(28.dp))\n                    .clip(RoundedCornerShape(28.dp))\n                    .background(\n                        Brush.verticalGradient(\n                            colors = listOf(\n                                Color(0xFF252528),\n                                AppleCardSurface\n                            )\n                        )\n                    )\n                    .border(1.dp, Color(0xFF3A3A3C), RoundedCornerShape(28.dp))\n                    .padding(horizontal = 32.dp, vertical = 34.dp),\n                horizontalAlignment = Alignment.CenterHorizontally,\n                verticalArrangement = Arrangement.spacedBy(22.dp)\n            ) {\n                // Progress Ring + Center Icon / Animated Checkmark or Failure Icon\n                Box(\n                    modifier = Modifier.size(108.dp),\n                    contentAlignment = Alignment.Center\n                ) {\n                    // Track circle\n                    CircularProgressIndicator(\n                        progress = { 1f },\n                        modifier = Modifier.fillMaxSize(),\n                        color = AppleCardBorder,\n                        strokeWidth = 7.dp\n                    )\n\n                    // Animated progress arc\n                    CircularProgressIndicator(\n                        progress = { animatedProgress },\n                        modifier = Modifier.fillMaxSize(),\n                        color = ringColor,\n                        strokeWidth = 7.dp,\n                        strokeCap = StrokeCap.Round\n                    )\n\n                    AnimatedContent(\n                        targetState = Pair(state.isComplete, state.isFailed),\n                        transitionSpec = {\n                            (scaleIn(animationSpec = tween(260)) + fadeIn(tween(220)))\n                                .togetherWith(fadeOut(tween(150)))\n                        },\n                        label = \"centerIconTransition\"\n                    ) { (completed, failed) ->\n                        when {\n                            completed -> {\n                                Box(\n                                    modifier = Modifier\n                                        .size(72.dp)\n                                        .clip(CircleShape)\n                                        .background(AppleGreen.copy(alpha = 0.2f)),\n                                    contentAlignment = Alignment.Center\n                                ) {\n                                    Icon(\n                                        imageVector = Icons.Default.Check,\n                                        contentDescription = \"החיבור הושלם\",\n                                        tint = AppleGreen,\n                                        modifier = Modifier.size(42.dp)\n                                    )\n                                }\n                            }\n                            failed -> {\n                                Box(\n                                    modifier = Modifier\n                                        .size(72.dp)\n                                        .clip(CircleShape)\n                                        .background(AppleRed.copy(alpha = 0.2f)),\n                                    contentAlignment = Alignment.Center\n                                ) {\n                                    Icon(\n                                        imageVector = Icons.Default.Close,\n                                        contentDescription = \"החיבור נכשל\",\n                                        tint = AppleRed,\n                                        modifier = Modifier.size(42.dp)\n                                    )\n                                }\n                            }\n                            else -> {\n                                Column(\n                                    horizontalAlignment = Alignment.CenterHorizontally\n                                ) {\n                                    Text(\n                                        text = \"\${state.progressPercent}%\",\n                                        style = MaterialTheme.typography.titleLarge.copy(\n                                            fontSize = 22.sp,\n                                            fontWeight = FontWeight.Bold\n                                        ),\n                                        color = AppleBlue\n                                    )\n                                }\n                            }\n                        }\n                    }\n                }\n\n                // Target Phone Name\n                Text(\n                    text = state.targetPhoneName,\n                    style = MaterialTheme.typography.headlineMedium.copy(\n                        fontSize = 22.sp,\n                        fontWeight = FontWeight.Bold\n                    ),\n                    color = AppleWhite,\n                    textAlign = TextAlign.Center\n                )\n\n                // Step Status Text in Hebrew\n                Text(\n                    text = state.statusTextHe,\n                    style = MaterialTheme.typography.titleMedium.copy(\n                        fontSize = 18.sp,\n                        fontWeight = FontWeight.Medium\n                    ),\n                    color = when {\n                        state.isFailed -> AppleRed\n                        state.isComplete -> AppleGreen\n                        else -> AppleMutedGray\n                    },\n                    textAlign = TextAlign.Center\n                )\n            }\n        }\n    }\n}\n\n/**\n * 4. Minimal Settings Sheet (Opened via ⚙️ Icon):\n * Contains the 3 straightforward buttons:\n * 1) \"צימוד טלפון חדש\" (Pair New Phone)\n * 2) \"איפוס בלוטות' מהיר\" (Restart Bluetooth)\n * 3) \"רענון זיכרון מערכת\" (Refresh System)\n * Plus the discrete \"ייצוא קוד APK (Export Android Project)\" button.\n */\n@Composable\nfun MinimalSettingsModalSheet(\n    isOpen: Boolean,\n    statusBannerHe: String?,\n    isRestartingBt: Boolean,\n    hiddenDeviceCount: Int,\n    onDismiss: () -> Unit,\n    onPairNewPhoneClick: () -> Unit,\n    onRestartBluetoothClick: () -> Unit,\n    onRefreshSystemClick: () -> Unit,\n    onRestoreHiddenDevicesClick: () -> Unit,\n    onOpenExportProjectClick: () -> Unit\n) {\n    if (!isOpen) return\n\n    Dialog(\n        onDismissRequest = onDismiss,\n        properties = DialogProperties(usePlatformDefaultWidth = false)\n    ) {\n        Box(\n            modifier = Modifier\n                .fillMaxSize()\n                .background(OledBlack.copy(alpha = 0.72f))\n                .clickable(onClick = onDismiss)\n                .testTag(\"settings_modal_sheet\"),\n            contentAlignment = Alignment.Center\n        ) {\n            Column(\n                modifier = Modifier\n                    .widthIn(max = 480.dp)\n                    .fillMaxWidth(0.88f)\n                    .shadow(24.dp, RoundedCornerShape(24.dp))\n                    .clip(RoundedCornerShape(24.dp))\n                    .background(AppleCardSurface)\n                    .border(1.dp, AppleCardBorder, RoundedCornerShape(24.dp))\n                    .clickable(enabled = false) {}\n                    .padding(horizontal = 26.dp, vertical = 24.dp),\n                verticalArrangement = Arrangement.spacedBy(14.dp)\n            ) {\n                // Sheet Header\n                Row(\n                    modifier = Modifier.fillMaxWidth(),\n                    horizontalArrangement = Arrangement.SpaceBetween,\n                    verticalAlignment = Alignment.CenterVertically\n                ) {\n                    Text(\n                        text = \"הגדרות בלוטות'\",\n                        style = MaterialTheme.typography.headlineMedium.copy(\n                            fontSize = 23.sp,\n                            fontWeight = FontWeight.Bold\n                        ),\n                        color = AppleWhite\n                    )\n\n                    Box(\n                        modifier = Modifier\n                            .size(38.dp)\n                            .clip(CircleShape)\n                            .background(AppleSubtleButtonBg)\n                            .clickable(onClick = onDismiss)\n                            .testTag(\"btn_close_settings\"),\n                        contentAlignment = Alignment.Center\n                    ) {\n                        Icon(\n                            imageVector = Icons.Default.Close,\n                            contentDescription = \"סגור\",\n                            tint = AppleMutedGray,\n                            modifier = Modifier.size(20.dp)\n                        )\n                    }\n                }\n\n                // Feedback banner when Restart BT or Refresh Memory is tapped\n                if (statusBannerHe != null) {\n                    val isBlockedError = statusBannerHe.contains(\"נחסמה\")\n                    val bannerAccent = if (isBlockedError) AppleRed else AppleBlue\n                    Row(\n                        modifier = Modifier\n                            .fillMaxWidth()\n                            .clip(RoundedCornerShape(14.dp))\n                            .background(bannerAccent.copy(alpha = 0.14f))\n                            .border(1.dp, bannerAccent.copy(alpha = 0.45f), RoundedCornerShape(14.dp))\n                            .padding(horizontal = 16.dp, vertical = 10.dp),\n                        verticalAlignment = Alignment.CenterVertically,\n                        horizontalArrangement = Arrangement.spacedBy(10.dp)\n                    ) {\n                        if (isRestartingBt) {\n                            CircularProgressIndicator(\n                                modifier = Modifier.size(18.dp),\n                                color = bannerAccent,\n                                strokeWidth = 2.dp\n                            )\n                        }\n                        Text(\n                            text = statusBannerHe,\n                            style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),\n                            color = if (isBlockedError) AppleRed else AppleWhite\n                        )\n                    }\n                }\n\n                // Button 1: \"צימוד טלפון חדש\" (Pair New Phone)\n                SettingsSheetActionRow(\n                    title = \"צימוד טלפון חדש\",\n                    icon = Icons.Default.AddLink,\n                    accentColor = AppleBlue,\n                    onClick = onPairNewPhoneClick,\n                    testTag = \"btn_settings_pair_new\"\n                )\n\n                // Button 2: \"איפוס בלוטות' מהיר\" (Restart Bluetooth)\n                SettingsSheetActionRow(\n                    title = \"איפוס בלוטות' מהיר\",\n                    icon = Icons.Default.RestartAlt,\n                    accentColor = AppleGreen,\n                    onClick = onRestartBluetoothClick,\n                    testTag = \"btn_settings_restart_bt\"\n                )\n\n                // Button 3: \"רענון זיכרון מערכת\" (Refresh System)\n                SettingsSheetActionRow(\n                    title = \"רענון זיכרון מערכת\",\n                    icon = Icons.Default.Memory,\n                    accentColor = AppleWhite,\n                    onClick = onRefreshSystemClick,\n                    testTag = \"btn_settings_refresh_system\"\n                )\n\n                // Show hidden devices again if any are hidden\n                if (hiddenDeviceCount > 0) {\n                    SettingsSheetActionRow(\n                        title = \"הצג מכשירים מוסתרים (\$hiddenDeviceCount)\",\n                        icon = Icons.Default.Visibility,\n                        accentColor = AppleBlue,\n                        onClick = onRestoreHiddenDevicesClick,\n                        testTag = \"btn_settings_restore_hidden\"\n                    )\n                }\n\n                Spacer(modifier = Modifier.height(4.dp))\n\n                // Discrete \"ייצוא קוד APK (Export Android Project)\" button\n                Row(\n                    modifier = Modifier\n                        .fillMaxWidth()\n                        .height(48.dp)\n                        .clip(RoundedCornerShape(14.dp))\n                        .background(OledBlack.copy(alpha = 0.55f))\n                        .border(1.dp, AppleCardBorder, RoundedCornerShape(14.dp))\n                        .clickable(onClick = onOpenExportProjectClick)\n                        .padding(horizontal = 16.dp)\n                        .testTag(\"btn_settings_export_apk\"),\n                    verticalAlignment = Alignment.CenterVertically,\n                    horizontalArrangement = Arrangement.Center\n                ) {\n                    Icon(\n                        imageVector = Icons.Default.Code,\n                        contentDescription = null,\n                        tint = AppleMutedGray,\n                        modifier = Modifier.size(18.dp)\n                    )\n                    Spacer(modifier = Modifier.width(8.dp))\n                    Text(\n                        text = \"ייצוא קוד APK (Export Android Project)\",\n                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),\n                        color = AppleMutedGray\n                    )\n                }\n            }\n        }\n    }\n}\n\n@Composable\nprivate fun SettingsSheetActionRow(\n    title: String,\n    icon: ImageVector,\n    accentColor: Color,\n    onClick: () -> Unit,\n    testTag: String\n) {\n    Row(\n        modifier = Modifier\n            .fillMaxWidth()\n            .height(62.dp)\n            .clip(RoundedCornerShape(16.dp))\n            .background(AppleCardElevated)\n            .border(1.dp, AppleCardBorder, RoundedCornerShape(16.dp))\n            .clickable(onClick = onClick)\n            .padding(horizontal = 18.dp)\n            .testTag(testTag),\n        verticalAlignment = Alignment.CenterVertically,\n        horizontalArrangement = Arrangement.spacedBy(14.dp)\n    ) {\n        Box(\n            modifier = Modifier\n                .size(40.dp)\n                .clip(CircleShape)\n                .background(accentColor.copy(alpha = 0.16f)),\n            contentAlignment = Alignment.Center\n        ) {\n            Icon(\n                imageVector = icon,\n                contentDescription = title,\n                tint = accentColor,\n                modifier = Modifier.size(22.dp)\n            )\n        }\n\n        Text(\n            text = title,\n            style = MaterialTheme.typography.titleMedium.copy(\n                fontSize = 18.sp,\n                fontWeight = FontWeight.Bold\n            ),\n            color = AppleWhite\n        )\n    }\n}"
+            languageBadge = "Kotlin",
+            description = "Minimalist Apple-Style RTL Header, Cards, Settings & Smart Switch Overlay",
+            content = """package com.example.ui.components
+
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AddLink
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Code
+import androidx.compose.material.icons.filled.Memory
+import androidx.compose.material.icons.filled.PhoneIphone
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.RestartAlt
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import com.example.model.PairedPhoneItem
+import com.example.model.SmartSwitchModalState
+import com.example.ui.theme.AppleBlue
+import com.example.ui.theme.AppleCardBorder
+import com.example.ui.theme.AppleCardElevated
+import com.example.ui.theme.AppleCardSurface
+import com.example.ui.theme.AppleGreen
+import com.example.ui.theme.AppleMutedGray
+import com.example.ui.theme.AppleRed
+import com.example.ui.theme.AppleSubtleButtonBg
+import com.example.ui.theme.AppleWhite
+import com.example.ui.theme.OledBlack
+
+/**
+ * 1. Minimal Top Header (RTL Layout):
+ * - Right side (Start in RTL): Bold title "מנהל בלוטות'" + Single status pill ("מחובר" Green or "לא מחובר" Gray).
+ * - Left side (End in RTL): Two simple circular icon buttons: Refresh (🔄) and Settings (⚙️).
+ */
+@Composable
+fun AppleTopHeader(
+    isAnyConnected: Boolean,
+    isRefreshing: Boolean,
+    onRefreshClick: () -> Unit,
+    onSettingsClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val rotationAngle by animateFloatAsState(
+        targetValue = if (isRefreshing) 360f else 0f,
+        animationSpec = tween(durationMillis = 500, easing = FastOutSlowInEasing),
+        label = "refreshRotation"
+    )
+
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 36.dp, vertical = 22.dp)
+            .testTag("apple_top_header"),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Right Side (Start in RTL): Title + Single Status Pill
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Text(
+                text = "מנהל בלוטות'",
+                style = MaterialTheme.typography.headlineLarge.copy(
+                    fontSize = 32.sp,
+                    fontWeight = FontWeight.Bold
+                ),
+                color = AppleWhite
+            )
+
+            ConnectionStatusPill(isConnected = isAnyConnected)
+        }
+
+        // Left Side (End in RTL): Two Circular Icon Buttons (🔄 Refresh & ⚙️ Settings)
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            CircularHeaderIconButton(
+                icon = Icons.Default.Refresh,
+                contentDescription = "רענון רשימת טלפונים",
+                onClick = onRefreshClick,
+                iconModifier = Modifier.rotate(rotationAngle),
+                testTag = "btn_refresh_phones"
+            )
+
+            CircularHeaderIconButton(
+                icon = Icons.Default.Settings,
+                contentDescription = "הגדרות בלוטות'",
+                onClick = onSettingsClick,
+                testTag = "btn_open_settings"
+            )
+        }
+    }
+}
+
+@Composable
+private fun ConnectionStatusPill(isConnected: Boolean) {
+    val infiniteTransition = rememberInfiniteTransition(label = "glowPulse")
+    val glowAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.45f,
+        targetValue = 1.0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1400, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "dotGlow"
+    )
+
+    val pillColor by animateColorAsState(
+        targetValue = if (isConnected) AppleGreen.copy(alpha = 0.16f) else AppleCardSurface,
+        label = "pillBg"
+    )
+    val borderColor by animateColorAsState(
+        targetValue = if (isConnected) AppleGreen.copy(alpha = 0.45f) else AppleCardBorder,
+        label = "pillBorder"
+    )
+    val dotColor = if (isConnected) AppleGreen else AppleMutedGray
+    val labelText = if (isConnected) "מחובר" else "לא מחובר"
+
+    Row(
+        modifier = Modifier
+            .clip(CircleShape)
+            .background(pillColor)
+            .border(1.dp, borderColor, CircleShape)
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .testTag("header_status_pill"),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            if (isConnected) {
+                Box(
+                    modifier = Modifier
+                        .size(14.dp)
+                        .clip(CircleShape)
+                        .background(AppleGreen.copy(alpha = glowAlpha * 0.35f))
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .clip(CircleShape)
+                    .background(dotColor)
+            )
+        }
+        Text(
+            text = labelText,
+            style = MaterialTheme.typography.labelLarge.copy(fontSize = 15.sp),
+            color = if (isConnected) AppleGreen else AppleMutedGray
+        )
+    }
+}
+
+@Composable
+private fun CircularHeaderIconButton(
+    icon: ImageVector,
+    contentDescription: String,
+    onClick: () -> Unit,
+    iconModifier: Modifier = Modifier,
+    testTag: String
+) {
+    Box(
+        modifier = Modifier
+            .size(54.dp)
+            .clip(CircleShape)
+            .background(AppleCardSurface)
+            .border(1.dp, AppleCardBorder, CircleShape)
+            .clickable(onClick = onClick)
+            .testTag(testTag),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
+            tint = AppleWhite,
+            modifier = iconModifier.size(24.dp)
+        )
+    }
+}
+
+/**
+ * 2. Center Stage: Big Side-by-Side Paired Phone Cards (BluetoothAdapter.bondedDevices)
+ * Each card contains ONLY 3 clean elements + small hide action:
+ * 1) Sleek Smartphone Vector Icon at the top
+ * 2) Phone Name in large, bold, high-contrast white text
+ * 3) Status & Single Action Button:
+ *    - Connected: Green badge "מחובר כעת" + subtle dark button "ניתוק"
+ *    - Disconnected: Full-width Apple-Blue button "התחבר לטלפון זה"
+ */
+@Composable
+fun PairedPhonesCenterStage(
+    phones: List<PairedPhoneItem>,
+    hiddenDeviceCount: Int,
+    onConnectClick: (PairedPhoneItem) -> Unit,
+    onDisconnectClick: (PairedPhoneItem) -> Unit,
+    onHideDeviceClick: (PairedPhoneItem) -> Unit,
+    onRestoreHiddenDevicesClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(horizontal = 36.dp, vertical = 12.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        if (phones.isEmpty() && hiddenDeviceCount > 0) {
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(AppleCardSurface)
+                    .border(1.dp, AppleCardBorder, RoundedCornerShape(16.dp))
+                    .clickable(onClick = onRestoreHiddenDevicesClick)
+                    .padding(horizontal = 24.dp, vertical = 14.dp)
+                    .testTag("btn_restore_hidden_empty_state"),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Visibility,
+                    contentDescription = "הצג מכשירים מוסתרים",
+                    tint = AppleBlue,
+                    modifier = Modifier.size(22.dp)
+                )
+                Text(
+                    text = "הצג מכשירים מוסתרים (${'$'}hiddenDeviceCount)",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = AppleWhite
+                )
+            }
+        } else {
+            LazyRow(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("paired_phones_row"),
+                horizontalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterHorizontally),
+                verticalAlignment = Alignment.CenterVertically,
+                contentPadding = PaddingValues(vertical = 8.dp)
+            ) {
+                items(phones, key = { it.id }) { phone ->
+                    ApplePairedPhoneCard(
+                        phone = phone,
+                        onConnectClick = { onConnectClick(phone) },
+                        onDisconnectClick = { onDisconnectClick(phone) },
+                        onHideClick = { onHideDeviceClick(phone) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ApplePairedPhoneCard(
+    phone: PairedPhoneItem,
+    onConnectClick: () -> Unit,
+    onDisconnectClick: () -> Unit,
+    onHideClick: () -> Unit
+) {
+    val isConnected = phone.isConnected
+    val borderColor by animateColorAsState(
+        targetValue = if (isConnected) AppleGreen.copy(alpha = 0.65f) else AppleCardBorder,
+        animationSpec = tween(300),
+        label = "cardBorder"
+    )
+
+    Box(
+        modifier = Modifier
+            .width(345.dp)
+            .height(360.dp)
+            .shadow(
+                elevation = if (isConnected) 20.dp else 8.dp,
+                shape = RoundedCornerShape(24.dp),
+                spotColor = if (isConnected) AppleGreen.copy(alpha = 0.25f) else Color.Black
+            )
+            .clip(RoundedCornerShape(24.dp))
+            .background(AppleCardSurface)
+            .border(
+                width = if (isConnected) 1.8.dp else 1.dp,
+                color = borderColor,
+                shape = RoundedCornerShape(24.dp)
+            )
+            .testTag("phone_card_${'$'}{phone.id}")
+    ) {
+        // Small unobtrusive "hide this device" action in top-end corner
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(14.dp)
+                .size(32.dp)
+                .clip(CircleShape)
+                .background(AppleSubtleButtonBg.copy(alpha = 0.7f))
+                .clickable(onClick = onHideClick)
+                .testTag("btn_hide_device_${'$'}{phone.id}"),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.VisibilityOff,
+                contentDescription = "הסתר מכשיר זה",
+                tint = AppleMutedGray,
+                modifier = Modifier.size(16.dp)
+            )
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 26.dp, vertical = 28.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            // Element 1: Sleek Smartphone Vector Icon at the top
+            Box(
+                modifier = Modifier
+                    .size(84.dp)
+                    .clip(CircleShape)
+                    .background(
+                        if (isConnected) {
+                            Brush.radialGradient(
+                                colors = listOf(
+                                    AppleGreen.copy(alpha = 0.24f),
+                                    AppleCardElevated
+                                )
+                            )
+                        } else {
+                            Brush.radialGradient(
+                                colors = listOf(
+                                    AppleBlue.copy(alpha = 0.16f),
+                                    AppleCardElevated
+                                )
+                            )
+                        }
+                    )
+                    .border(
+                        width = 1.dp,
+                        color = if (isConnected) AppleGreen.copy(alpha = 0.45f) else AppleCardBorder,
+                        shape = CircleShape
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.PhoneIphone,
+                    contentDescription = phone.name,
+                    tint = if (isConnected) AppleGreen else AppleWhite,
+                    modifier = Modifier.size(42.dp)
+                )
+            }
+
+            // Element 2: Phone Name in large, bold, high-contrast white text
+            Text(
+                text = phone.name,
+                style = MaterialTheme.typography.headlineMedium.copy(
+                    fontSize = 25.sp,
+                    fontWeight = FontWeight.Bold
+                ),
+                color = AppleWhite,
+                textAlign = TextAlign.Center,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(horizontal = 6.dp)
+            )
+
+            // Element 3: Status & Single Action Button
+            if (isConnected) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    // Green badge "מחובר כעת"
+                    Row(
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .background(AppleGreen.copy(alpha = 0.16f))
+                            .border(1.dp, AppleGreen.copy(alpha = 0.45f), CircleShape)
+                            .padding(horizontal = 16.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(AppleGreen)
+                        )
+                        Text(
+                            text = "מחובר כעת",
+                            style = MaterialTheme.typography.labelLarge.copy(fontSize = 15.sp),
+                            color = AppleGreen
+                        )
+                    }
+
+                    // Subtle dark button "ניתוק"
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(56.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(AppleSubtleButtonBg)
+                            .border(1.dp, AppleCardBorder, RoundedCornerShape(16.dp))
+                            .clickable(onClick = onDisconnectClick)
+                            .testTag("btn_disconnect_${'$'}{phone.id}"),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "ניתוק",
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold
+                            ),
+                            color = AppleMutedGray
+                        )
+                    }
+                }
+            } else {
+                // Disconnected: Prominent, full-width Apple-Blue button "התחבר לטלפון זה"
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Bottom
+                ) {
+                    Spacer(modifier = Modifier.height(36.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(60.dp)
+                            .shadow(
+                                elevation = 10.dp,
+                                shape = RoundedCornerShape(16.dp),
+                                spotColor = AppleBlue.copy(alpha = 0.4f)
+                            )
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(AppleBlue)
+                            .clickable(onClick = onConnectClick)
+                            .testTag("btn_connect_${'$'}{phone.id}"),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "התחבר לטלפון זה",
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold
+                            ),
+                            color = AppleWhite
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 3. Smooth "Smart Switch" Glassmorphic Popup Overlay (AirPods connection sheet style):
+ * - Step 1 (25%): "מנתק את הטלפון הקודם..."
+ * - Step 2 (60%): "מרענן את חיבור הבלוטות'..."
+ * - Step 3 (90%): "מתחבר אל [Phone Name]..."
+ * - Step 4 (100%): Polls every 250ms up to 3500ms for STATE_CONNECTED on profiles 1, 2, 11, 12, or 16:
+ *   - Success: Animated Green Checkmark "החיבור הושלם!"
+ *   - Failure: Red Icon "לא ניתן להתחבר, ודא שהבלוטות' בטלפון פעיל"
+ */
+@Composable
+fun SmartSwitchPopupOverlay(
+    state: SmartSwitchModalState
+) {
+    if (state !is SmartSwitchModalState.Switching) return
+
+    val animatedProgress by animateFloatAsState(
+        targetValue = state.progressPercent / 100f,
+        animationSpec = tween(durationMillis = 420, easing = FastOutSlowInEasing),
+        label = "ringProgress"
+    )
+
+    val ringColor = when {
+        state.isFailed -> AppleRed
+        state.isComplete -> AppleGreen
+        else -> AppleBlue
+    }
+
+    Dialog(
+        onDismissRequest = { /* Modal is non-dismissable during active switch */ },
+        properties = DialogProperties(
+            dismissOnBackPress = false,
+            dismissOnClickOutside = false,
+            usePlatformDefaultWidth = false
+        )
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(OledBlack.copy(alpha = 0.72f))
+                .testTag("smart_switch_popup_overlay"),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                modifier = Modifier
+                    .width(420.dp)
+                    .shadow(28.dp, RoundedCornerShape(28.dp))
+                    .clip(RoundedCornerShape(28.dp))
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                Color(0xFF252528),
+                                AppleCardSurface
+                            )
+                        )
+                    )
+                    .border(1.dp, Color(0xFF3A3A3C), RoundedCornerShape(28.dp))
+                    .padding(horizontal = 32.dp, vertical = 34.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(22.dp)
+            ) {
+                // Progress Ring + Center Icon / Animated Checkmark or Failure Icon
+                Box(
+                    modifier = Modifier.size(108.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    // Track circle
+                    CircularProgressIndicator(
+                        progress = { 1f },
+                        modifier = Modifier.fillMaxSize(),
+                        color = AppleCardBorder,
+                        strokeWidth = 7.dp
+                    )
+
+                    // Animated progress arc
+                    CircularProgressIndicator(
+                        progress = { animatedProgress },
+                        modifier = Modifier.fillMaxSize(),
+                        color = ringColor,
+                        strokeWidth = 7.dp,
+                        strokeCap = StrokeCap.Round
+                    )
+
+                    AnimatedContent(
+                        targetState = Pair(state.isComplete, state.isFailed),
+                        transitionSpec = {
+                            (scaleIn(animationSpec = tween(260)) + fadeIn(tween(220)))
+                                .togetherWith(fadeOut(tween(150)))
+                        },
+                        label = "centerIconTransition"
+                    ) { (completed, failed) ->
+                        when {
+                            completed -> {
+                                Box(
+                                    modifier = Modifier
+                                        .size(72.dp)
+                                        .clip(CircleShape)
+                                        .background(AppleGreen.copy(alpha = 0.2f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = "החיבור הושלם",
+                                        tint = AppleGreen,
+                                        modifier = Modifier.size(42.dp)
+                                    )
+                                }
+                            }
+                            failed -> {
+                                Box(
+                                    modifier = Modifier
+                                        .size(72.dp)
+                                        .clip(CircleShape)
+                                        .background(AppleRed.copy(alpha = 0.2f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "החיבור נכשל",
+                                        tint = AppleRed,
+                                        modifier = Modifier.size(42.dp)
+                                    )
+                                }
+                            }
+                            else -> {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Text(
+                                        text = "${'$'}{state.progressPercent}%",
+                                        style = MaterialTheme.typography.titleLarge.copy(
+                                            fontSize = 22.sp,
+                                            fontWeight = FontWeight.Bold
+                                        ),
+                                        color = AppleBlue
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Target Phone Name
+                Text(
+                    text = state.targetPhoneName,
+                    style = MaterialTheme.typography.headlineMedium.copy(
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Bold
+                    ),
+                    color = AppleWhite,
+                    textAlign = TextAlign.Center
+                )
+
+                // Step Status Text in Hebrew
+                Text(
+                    text = state.statusTextHe,
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Medium
+                    ),
+                    color = when {
+                        state.isFailed -> AppleRed
+                        state.isComplete -> AppleGreen
+                        else -> AppleMutedGray
+                    },
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
+    }
+}
+
+/**
+ * 4. Minimal Settings Sheet (Opened via ⚙️ Icon):
+ * Contains the 3 straightforward buttons:
+ * 1) "צימוד טלפון חדש" (Pair New Phone)
+ * 2) "איפוס בלוטות' מהיר" (Restart Bluetooth)
+ * 3) "רענון זיכרון מערכת" (Refresh System)
+ * Plus the discrete "ייצוא קוד APK (Export Android Project)" button.
+ */
+@Composable
+fun MinimalSettingsModalSheet(
+    isOpen: Boolean,
+    statusBannerHe: String?,
+    isRestartingBt: Boolean,
+    hiddenDeviceCount: Int,
+    onDismiss: () -> Unit,
+    onPairNewPhoneClick: () -> Unit,
+    onRestartBluetoothClick: () -> Unit,
+    onRefreshSystemClick: () -> Unit,
+    onRestoreHiddenDevicesClick: () -> Unit,
+    onOpenExportProjectClick: () -> Unit
+) {
+    if (!isOpen) return
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(OledBlack.copy(alpha = 0.72f))
+                .clickable(onClick = onDismiss)
+                .testTag("settings_modal_sheet"),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                modifier = Modifier
+                    .widthIn(max = 480.dp)
+                    .fillMaxWidth(0.88f)
+                    .shadow(24.dp, RoundedCornerShape(24.dp))
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(AppleCardSurface)
+                    .border(1.dp, AppleCardBorder, RoundedCornerShape(24.dp))
+                    .clickable(enabled = false) {}
+                    .padding(horizontal = 26.dp, vertical = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                // Sheet Header
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "הגדרות בלוטות'",
+                        style = MaterialTheme.typography.headlineMedium.copy(
+                            fontSize = 23.sp,
+                            fontWeight = FontWeight.Bold
+                        ),
+                        color = AppleWhite
+                    )
+
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .background(AppleSubtleButtonBg)
+                            .clickable(onClick = onDismiss)
+                            .testTag("btn_close_settings"),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "סגור",
+                            tint = AppleMutedGray,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+
+                // Feedback banner when Restart BT or Refresh Memory is tapped
+                if (statusBannerHe != null) {
+                    val isBlockedError = statusBannerHe.contains("נחסמה")
+                    val bannerAccent = if (isBlockedError) AppleRed else AppleBlue
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(bannerAccent.copy(alpha = 0.14f))
+                            .border(1.dp, bannerAccent.copy(alpha = 0.45f), RoundedCornerShape(14.dp))
+                            .padding(horizontal = 16.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        if (isRestartingBt) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                color = bannerAccent,
+                                strokeWidth = 2.dp
+                            )
+                        }
+                        Text(
+                            text = statusBannerHe,
+                            style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
+                            color = if (isBlockedError) AppleRed else AppleWhite
+                        )
+                    }
+                }
+
+                // Button 1: "צימוד טלפון חדש" (Pair New Phone)
+                SettingsSheetActionRow(
+                    title = "צימוד טלפון חדש",
+                    icon = Icons.Default.AddLink,
+                    accentColor = AppleBlue,
+                    onClick = onPairNewPhoneClick,
+                    testTag = "btn_settings_pair_new"
+                )
+
+                // Button 2: "איפוס בלוטות' מהיר" (Restart Bluetooth)
+                SettingsSheetActionRow(
+                    title = "איפוס בלוטות' מהיר",
+                    icon = Icons.Default.RestartAlt,
+                    accentColor = AppleGreen,
+                    onClick = onRestartBluetoothClick,
+                    testTag = "btn_settings_restart_bt"
+                )
+
+                // Button 3: "רענון זיכרון מערכת" (Refresh System)
+                SettingsSheetActionRow(
+                    title = "רענון זיכרון מערכת",
+                    icon = Icons.Default.Memory,
+                    accentColor = AppleWhite,
+                    onClick = onRefreshSystemClick,
+                    testTag = "btn_settings_refresh_system"
+                )
+
+                // Show hidden devices again if any are hidden
+                if (hiddenDeviceCount > 0) {
+                    SettingsSheetActionRow(
+                        title = "הצג מכשירים מוסתרים (${'$'}hiddenDeviceCount)",
+                        icon = Icons.Default.Visibility,
+                        accentColor = AppleBlue,
+                        onClick = onRestoreHiddenDevicesClick,
+                        testTag = "btn_settings_restore_hidden"
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                // Discrete "ייצוא קוד APK (Export Android Project)" button
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(OledBlack.copy(alpha = 0.55f))
+                        .border(1.dp, AppleCardBorder, RoundedCornerShape(14.dp))
+                        .clickable(onClick = onOpenExportProjectClick)
+                        .padding(horizontal = 16.dp)
+                        .testTag("btn_settings_export_apk"),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Code,
+                        contentDescription = null,
+                        tint = AppleMutedGray,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "ייצוא קוד APK (Export Android Project)",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                        color = AppleMutedGray
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SettingsSheetActionRow(
+    title: String,
+    icon: ImageVector,
+    accentColor: Color,
+    onClick: () -> Unit,
+    testTag: String
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(62.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(AppleCardElevated)
+            .border(1.dp, AppleCardBorder, RoundedCornerShape(16.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 18.dp)
+            .testTag(testTag),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .background(accentColor.copy(alpha = 0.16f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = title,
+                tint = accentColor,
+                modifier = Modifier.size(22.dp)
+            )
+        }
+
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleMedium.copy(
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold
+            ),
+            color = AppleWhite
+        )
+    }
+}""",
         ),
         ExportableProjectFile(
-            id = "export_project_screen",
+            id = "export_screen",
             title = "ExportProjectScreen.kt",
             relativePath = "app/src/main/java/com/example/ui/components/ExportProjectScreen.kt",
-            languageBadge = "Kotlin • Native Source & Log Exporter",
-            description = "Modal viewer for copying, downloading, or sharing all project files and live diagnostic logs.",
-            content = "package com.example.ui.components\n\nimport android.content.ClipData\nimport android.content.ClipboardManager\nimport android.content.Context\nimport android.content.Intent\nimport android.widget.Toast\nimport androidx.activity.compose.rememberLauncherForActivityResult\nimport androidx.activity.result.contract.ActivityResultContracts\nimport androidx.compose.foundation.background\nimport androidx.compose.foundation.border\nimport androidx.compose.foundation.clickable\nimport androidx.compose.foundation.horizontalScroll\nimport androidx.compose.foundation.layout.Arrangement\nimport androidx.compose.foundation.layout.Box\nimport androidx.compose.foundation.layout.Column\nimport androidx.compose.foundation.layout.Row\nimport androidx.compose.foundation.layout.Spacer\nimport androidx.compose.foundation.layout.fillMaxHeight\nimport androidx.compose.foundation.layout.fillMaxSize\nimport androidx.compose.foundation.layout.fillMaxWidth\nimport androidx.compose.foundation.layout.height\nimport androidx.compose.foundation.layout.padding\nimport androidx.compose.foundation.layout.size\nimport androidx.compose.foundation.layout.width\nimport androidx.compose.foundation.rememberScrollState\nimport androidx.compose.foundation.shape.CircleShape\nimport androidx.compose.foundation.shape.RoundedCornerShape\nimport androidx.compose.foundation.verticalScroll\nimport androidx.compose.material.icons.Icons\nimport androidx.compose.material.icons.filled.Close\nimport androidx.compose.material.icons.filled.ContentCopy\nimport androidx.compose.material.icons.filled.Download\nimport androidx.compose.material.icons.filled.FolderZip\nimport androidx.compose.material.icons.filled.Share\nimport androidx.compose.material.icons.filled.Terminal\nimport androidx.compose.material3.Icon\nimport androidx.compose.material3.MaterialTheme\nimport androidx.compose.material3.Text\nimport androidx.compose.runtime.Composable\nimport androidx.compose.runtime.CompositionLocalProvider\nimport androidx.compose.runtime.getValue\nimport androidx.compose.runtime.mutableStateOf\nimport androidx.compose.runtime.remember\nimport androidx.compose.runtime.setValue\nimport androidx.compose.ui.Alignment\nimport androidx.compose.ui.Modifier\nimport androidx.compose.ui.draw.clip\nimport androidx.compose.ui.graphics.Color\nimport androidx.compose.ui.platform.LocalContext\nimport androidx.compose.ui.platform.LocalLayoutDirection\nimport androidx.compose.ui.platform.testTag\nimport androidx.compose.ui.text.font.FontWeight\nimport androidx.compose.ui.unit.LayoutDirection\nimport androidx.compose.ui.unit.dp\nimport androidx.compose.ui.window.Dialog\nimport androidx.compose.ui.window.DialogProperties\nimport com.example.export.ExportableProjectFile\nimport com.example.export.NativeExportCatalog\nimport com.example.ui.theme.AppleBlue\nimport com.example.ui.theme.AppleCardBorder\nimport com.example.ui.theme.AppleCardElevated\nimport com.example.ui.theme.AppleCardSurface\nimport com.example.ui.theme.AppleGreen\nimport com.example.ui.theme.AppleMutedGray\nimport com.example.ui.theme.AppleSubtleButtonBg\nimport com.example.ui.theme.AppleWhite\nimport com.example.ui.theme.OledBlack\n\n@Composable\nfun ExportProjectModalDialog(\n    isOpen: Boolean,\n    diagnosticLogs: List<String> = emptyList(),\n    onDismiss: () -> Unit\n) {\n    if (!isOpen) return\n\n    val context = LocalContext.current\n    val files = NativeExportCatalog.FILES\n    var selectedFileId by remember { mutableStateOf(files.first().id) }\n    var showDiagnosticLogTab by remember { mutableStateOf(false) }\n\n    val selectedFile = files.firstOrNull { it.id == selectedFileId } ?: files.first()\n    val displayedContent = if (showDiagnosticLogTab) {\n        if (diagnosticLogs.isEmpty()) \"No diagnostic events recorded yet.\"\n        else diagnosticLogs.joinToString(\"\\n\")\n    } else {\n        selectedFile.content\n    }\n    val displayedTitle = if (showDiagnosticLogTab) {\n        \"Live Diagnostic Log (\${diagnosticLogs.size} entries)\"\n    } else {\n        selectedFile.title\n    }\n    val displayedSubtitle = if (showDiagnosticLogTab) {\n        \"Records every Java Reflection call, profile connection poll (250ms x 3500ms), and adapter reset result.\"\n    } else {\n        \"\${selectedFile.description} • \${selectedFile.content.lines().size} lines\"\n    }\n\n    val saveDocumentLauncher = rememberLauncherForActivityResult(\n        contract = ActivityResultContracts.CreateDocument(\"text/plain\")\n    ) { uri ->\n        if (uri != null) {\n            runCatching {\n                context.contentResolver.openOutputStream(uri)?.use { out ->\n                    out.write(displayedContent.toByteArray(Charsets.UTF_8))\n                }\n                Toast.makeText(\n                    context,\n                    \"Saved \${if (showDiagnosticLogTab) \"diagnostic_log.txt\" else selectedFile.relativePath}\",\n                    Toast.LENGTH_SHORT\n                ).show()\n            }\n        }\n    }\n\n    Dialog(\n        onDismissRequest = onDismiss,\n        properties = DialogProperties(usePlatformDefaultWidth = false)\n    ) {\n        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {\n            Box(\n                modifier = Modifier\n                    .fillMaxSize()\n                    .background(OledBlack.copy(alpha = 0.85f))\n                    .padding(24.dp)\n                    .testTag(\"export_native_apk_modal\"),\n                contentAlignment = Alignment.Center\n            ) {\n                Column(\n                    modifier = Modifier\n                        .fillMaxSize()\n                        .clip(RoundedCornerShape(24.dp))\n                        .background(AppleCardSurface)\n                        .border(1.dp, AppleCardBorder, RoundedCornerShape(24.dp))\n                        .padding(20.dp)\n                ) {\n                    // Modal Header\n                    Row(\n                        modifier = Modifier.fillMaxWidth(),\n                        horizontalArrangement = Arrangement.SpaceBetween,\n                        verticalAlignment = Alignment.CenterVertically\n                    ) {\n                        Row(\n                            verticalAlignment = Alignment.CenterVertically,\n                            horizontalArrangement = Arrangement.spacedBy(10.dp)\n                        ) {\n                            Icon(\n                                imageVector = Icons.Default.FolderZip,\n                                contentDescription = null,\n                                tint = AppleBlue,\n                                modifier = Modifier.size(24.dp)\n                            )\n                            Text(\n                                text = \"Export Native Android APK Project (\${files.size} Full Source Files + Diagnostic Log)\",\n                                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),\n                                color = AppleWhite\n                            )\n                        }\n\n                        Box(\n                            modifier = Modifier\n                                .size(38.dp)\n                                .clip(CircleShape)\n                                .background(AppleSubtleButtonBg)\n                                .clickable(onClick = onDismiss)\n                                .testTag(\"btn_close_export_modal\"),\n                            contentAlignment = Alignment.Center\n                        ) {\n                            Icon(\n                                imageVector = Icons.Default.Close,\n                                contentDescription = \"Close\",\n                                tint = AppleWhite,\n                                modifier = Modifier.size(20.dp)\n                            )\n                        }\n                    }\n\n                    Spacer(modifier = Modifier.height(14.dp))\n\n                    Row(\n                        modifier = Modifier.fillMaxSize(),\n                        horizontalArrangement = Arrangement.spacedBy(16.dp)\n                    ) {\n                        // Left Column: Scrollable File List + Live Diagnostic Log item\n                        val listScrollState = rememberScrollState()\n                        Column(\n                            modifier = Modifier\n                                .width(340.dp)\n                                .fillMaxHeight()\n                                .verticalScroll(listScrollState),\n                            verticalArrangement = Arrangement.spacedBy(8.dp)\n                        ) {\n                            // Diagnostic Log Selector\n                            Column(\n                                modifier = Modifier\n                                    .fillMaxWidth()\n                                    .clip(RoundedCornerShape(14.dp))\n                                    .background(\n                                        if (showDiagnosticLogTab) AppleGreen.copy(alpha = 0.18f)\n                                        else AppleCardElevated\n                                    )\n                                    .border(\n                                        width = if (showDiagnosticLogTab) 1.5.dp else 1.dp,\n                                        color = if (showDiagnosticLogTab) AppleGreen else AppleCardBorder,\n                                        shape = RoundedCornerShape(14.dp)\n                                    )\n                                    .clickable { showDiagnosticLogTab = true }\n                                    .padding(horizontal = 14.dp, vertical = 10.dp)\n                                    .testTag(\"export_tab_diagnostic_log\")\n                            ) {\n                                Row(\n                                    verticalAlignment = Alignment.CenterVertically,\n                                    horizontalArrangement = Arrangement.spacedBy(6.dp)\n                                ) {\n                                    Icon(\n                                        imageVector = Icons.Default.Terminal,\n                                        contentDescription = null,\n                                        tint = AppleGreen,\n                                        modifier = Modifier.size(16.dp)\n                                    )\n                                    Text(\n                                        text = \"Live Diagnostic Log (\${diagnosticLogs.size})\",\n                                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),\n                                        color = AppleGreen\n                                    )\n                                }\n                                Spacer(modifier = Modifier.height(2.dp))\n                                Text(\n                                    text = \"Reflection & Connection Poll Trace\",\n                                    style = MaterialTheme.typography.bodyMedium,\n                                    color = AppleMutedGray\n                                )\n                            }\n\n                            files.forEach { file ->\n                                val isSelected = !showDiagnosticLogTab && file.id == selectedFile.id\n                                Column(\n                                    modifier = Modifier\n                                        .fillMaxWidth()\n                                        .clip(RoundedCornerShape(14.dp))\n                                        .background(\n                                            if (isSelected) AppleBlue.copy(alpha = 0.18f)\n                                            else AppleCardElevated\n                                        )\n                                        .border(\n                                            width = if (isSelected) 1.5.dp else 1.dp,\n                                            color = if (isSelected) AppleBlue else AppleCardBorder,\n                                            shape = RoundedCornerShape(14.dp)\n                                        )\n                                        .clickable {\n                                            showDiagnosticLogTab = false\n                                            selectedFileId = file.id\n                                        }\n                                        .padding(horizontal = 14.dp, vertical = 10.dp)\n                                        .testTag(\"export_file_\${file.id}\")\n                                ) {\n                                    Text(\n                                        text = file.relativePath,\n                                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),\n                                        color = if (isSelected) AppleBlue else AppleWhite\n                                    )\n                                    Spacer(modifier = Modifier.height(2.dp))\n                                    Text(\n                                        text = \"\${file.languageBadge} • \${file.content.lines().size} lines\",\n                                        style = MaterialTheme.typography.bodyMedium,\n                                        color = AppleMutedGray\n                                    )\n                                }\n                            }\n                        }\n\n                        // Right Column: Code Viewer & Export Actions\n                        Column(\n                            modifier = Modifier\n                                .weight(1f)\n                                .fillMaxHeight()\n                                .clip(RoundedCornerShape(16.dp))\n                                .background(OledBlack)\n                                .border(1.dp, AppleCardBorder, RoundedCornerShape(16.dp))\n                                .padding(14.dp)\n                        ) {\n                            Row(\n                                modifier = Modifier.fillMaxWidth(),\n                                horizontalArrangement = Arrangement.SpaceBetween,\n                                verticalAlignment = Alignment.CenterVertically\n                            ) {\n                                Column(modifier = Modifier.weight(1f)) {\n                                    Text(\n                                        text = displayedTitle,\n                                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),\n                                        color = AppleWhite\n                                    )\n                                    Text(\n                                        text = displayedSubtitle,\n                                        style = MaterialTheme.typography.bodyMedium,\n                                        color = AppleMutedGray\n                                    )\n                                }\n\n                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {\n                                    ExportPillButton(\n                                        label = \"Copy\",\n                                        icon = Icons.Default.ContentCopy,\n                                        accent = AppleBlue,\n                                        onClick = {\n                                            copyToClipboard(\n                                                context,\n                                                if (showDiagnosticLogTab) \"diagnostic_log.txt\" else selectedFile.relativePath,\n                                                displayedContent\n                                            )\n                                        }\n                                    )\n                                    ExportPillButton(\n                                        label = \"Download\",\n                                        icon = Icons.Default.Download,\n                                        accent = AppleGreen,\n                                        onClick = {\n                                            val fileName = if (showDiagnosticLogTab) {\n                                                \"diagnostic_log.txt\"\n                                            } else {\n                                                selectedFile.relativePath.substringAfterLast('/')\n                                            }\n                                            saveDocumentLauncher.launch(fileName)\n                                        }\n                                    )\n                                    ExportPillButton(\n                                        label = \"Share\",\n                                        icon = Icons.Default.Share,\n                                        accent = AppleWhite,\n                                        onClick = {\n                                            shareTextContent(\n                                                context,\n                                                if (showDiagnosticLogTab) \"diagnostic_log.txt\" else selectedFile.relativePath,\n                                                displayedContent\n                                            )\n                                        }\n                                    )\n                                }\n                            }\n\n                            Spacer(modifier = Modifier.height(10.dp))\n\n                            val vScroll = rememberScrollState()\n                            val hScroll = rememberScrollState()\n\n                            Box(\n                                modifier = Modifier\n                                    .fillMaxSize()\n                                    .clip(RoundedCornerShape(12.dp))\n                                    .background(Color(0xFF0A0A0C))\n                                    .padding(12.dp)\n                            ) {\n                                Text(\n                                    text = displayedContent,\n                                    style = MaterialTheme.typography.labelMedium,\n                                    color = Color(0xFFE5F0FF),\n                                    modifier = Modifier\n                                        .fillMaxSize()\n                                        .verticalScroll(vScroll)\n                                        .horizontalScroll(hScroll)\n                                )\n                            }\n                        }\n                    }\n                }\n            }\n        }\n    }\n}\n\n@Composable\nprivate fun ExportPillButton(\n    label: String,\n    icon: androidx.compose.ui.graphics.vector.ImageVector,\n    accent: Color,\n    onClick: () -> Unit\n) {\n    Row(\n        modifier = Modifier\n            .clip(RoundedCornerShape(10.dp))\n            .background(accent.copy(alpha = 0.16f))\n            .border(1.dp, accent.copy(alpha = 0.6f), RoundedCornerShape(10.dp))\n            .clickable(onClick = onClick)\n            .padding(horizontal = 12.dp, vertical = 8.dp),\n        verticalAlignment = Alignment.CenterVertically,\n        horizontalArrangement = Arrangement.spacedBy(6.dp)\n    ) {\n        Icon(\n            imageVector = icon,\n            contentDescription = label,\n            tint = accent,\n            modifier = Modifier.size(16.dp)\n        )\n        Text(\n            text = label,\n            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),\n            color = AppleWhite\n        )\n    }\n}\n\nprivate fun copyToClipboard(context: Context, label: String, content: String) {\n    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager\n    clipboard.setPrimaryClip(ClipData.newPlainText(label, content))\n    Toast.makeText(context, \"Copied \$label\", Toast.LENGTH_SHORT).show()\n}\n\nprivate fun shareTextContent(context: Context, subject: String, content: String) {\n    val sendIntent = Intent(Intent.ACTION_SEND).apply {\n        type = \"text/plain\"\n        putExtra(Intent.EXTRA_SUBJECT, subject)\n        putExtra(Intent.EXTRA_TEXT, content)\n    }\n    context.startActivity(Intent.createChooser(sendIntent, \"Export \$subject\"))\n}"
+            languageBadge = "Kotlin",
+            description = "Full Project Source Code & Read-Only Bluetooth Stack Diagnostics Viewer",
+            content = """package com.example.ui.components
+
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.content.Intent
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.FolderZip
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Terminal
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import com.example.export.ExportableProjectFile
+import com.example.export.NativeExportCatalog
+import com.example.ui.theme.AppleBlue
+import com.example.ui.theme.AppleCardBorder
+import com.example.ui.theme.AppleCardElevated
+import com.example.ui.theme.AppleCardSurface
+import com.example.ui.theme.AppleGreen
+import com.example.ui.theme.AppleMutedGray
+import com.example.ui.theme.AppleSubtleButtonBg
+import com.example.ui.theme.AppleWhite
+import com.example.ui.theme.OledBlack
+
+@Composable
+fun ExportProjectModalDialog(
+    isOpen: Boolean,
+    diagnosticLogs: List<String> = emptyList(),
+    bluetoothStackDiagnostics: List<String> = emptyList(),
+    onDismiss: () -> Unit
+) {
+    if (!isOpen) return
+
+    val context = LocalContext.current
+    val files = NativeExportCatalog.FILES
+    var selectedFileId by remember { mutableStateOf(files.first().id) }
+    var showDiagnosticLogTab by remember { mutableStateOf(false) }
+
+    val selectedFile = files.firstOrNull { it.id == selectedFileId } ?: files.first()
+    val stackDiagnosticsText = if (bluetoothStackDiagnostics.isEmpty()) {
+        "Collecting Bluetooth stack diagnostics..."
+    } else {
+        bluetoothStackDiagnostics.joinToString("\n")
+    }
+    val liveLogText = if (diagnosticLogs.isEmpty()) {
+        "No diagnostic events recorded yet."
+    } else {
+        diagnosticLogs.joinToString("\n")
+    }
+    val displayedContent = if (showDiagnosticLogTab) {
+        buildString {
+            appendLine("=== Bluetooth stack diagnostics (READ-ONLY) ===")
+            appendLine(stackDiagnosticsText)
+            appendLine("===============================================")
+            appendLine()
+            appendLine("=== Live Diagnostic Log (${'$'}{diagnosticLogs.size} / 1000 entries) ===")
+            append(liveLogText)
+        }
+    } else {
+        selectedFile.content
+    }
+    val displayedTitle = if (showDiagnosticLogTab) {
+        "Live Diagnostic Log (${'$'}{diagnosticLogs.size} / 1000 entries)"
+    } else {
+        selectedFile.title
+    }
+    val displayedSubtitle = if (showDiagnosticLogTab) {
+        "Includes READ-ONLY Bluetooth stack diagnostics + every Java Reflection call, 10s proxy callback check, and connection poll."
+    } else {
+        "${'$'}{selectedFile.description} • ${'$'}{selectedFile.content.lines().size} lines"
+    }
+
+    val saveDocumentLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("text/plain")
+    ) { uri ->
+        if (uri != null) {
+            runCatching {
+                context.contentResolver.openOutputStream(uri)?.use { out ->
+                    out.write(displayedContent.toByteArray(Charsets.UTF_8))
+                }
+                Toast.makeText(
+                    context,
+                    "Saved ${'$'}{if (showDiagnosticLogTab) "diagnostic_log.txt" else selectedFile.relativePath}",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+    }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(OledBlack.copy(alpha = 0.85f))
+                    .padding(24.dp)
+                    .testTag("export_native_apk_modal"),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(RoundedCornerShape(24.dp))
+                        .background(AppleCardSurface)
+                        .border(1.dp, AppleCardBorder, RoundedCornerShape(24.dp))
+                        .padding(20.dp)
+                ) {
+                    // Modal Header
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.FolderZip,
+                                contentDescription = null,
+                                tint = AppleBlue,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Text(
+                                text = "Export Native Android APK Project (${'$'}{files.size} Full Source Files + Diagnostic Log)",
+                                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                                color = AppleWhite
+                            )
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clip(CircleShape)
+                                .background(AppleSubtleButtonBg)
+                                .clickable(onClick = onDismiss)
+                                .testTag("btn_close_export_modal"),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Close",
+                                tint = AppleWhite,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxSize(),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        // Left Column: Scrollable File List + Live Diagnostic Log item
+                        val listScrollState = rememberScrollState()
+                        Column(
+                            modifier = Modifier
+                                .width(340.dp)
+                                .fillMaxHeight()
+                                .verticalScroll(listScrollState),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            // Diagnostic Log Selector
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(
+                                        if (showDiagnosticLogTab) AppleGreen.copy(alpha = 0.18f)
+                                        else AppleCardElevated
+                                    )
+                                    .border(
+                                        width = if (showDiagnosticLogTab) 1.5.dp else 1.dp,
+                                        color = if (showDiagnosticLogTab) AppleGreen else AppleCardBorder,
+                                        shape = RoundedCornerShape(14.dp)
+                                    )
+                                    .clickable { showDiagnosticLogTab = true }
+                                    .padding(horizontal = 14.dp, vertical = 10.dp)
+                                    .testTag("export_tab_diagnostic_log")
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Terminal,
+                                        contentDescription = null,
+                                        tint = AppleGreen,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Text(
+                                        text = "Live Diagnostic Log (${'$'}{diagnosticLogs.size})",
+                                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                        color = AppleGreen
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = "Reflection & Connection Poll Trace",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = AppleMutedGray
+                                )
+                            }
+
+                            files.forEach { file ->
+                                val isSelected = !showDiagnosticLogTab && file.id == selectedFile.id
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(14.dp))
+                                        .background(
+                                            if (isSelected) AppleBlue.copy(alpha = 0.18f)
+                                            else AppleCardElevated
+                                        )
+                                        .border(
+                                            width = if (isSelected) 1.5.dp else 1.dp,
+                                            color = if (isSelected) AppleBlue else AppleCardBorder,
+                                            shape = RoundedCornerShape(14.dp)
+                                        )
+                                        .clickable {
+                                            showDiagnosticLogTab = false
+                                            selectedFileId = file.id
+                                        }
+                                        .padding(horizontal = 14.dp, vertical = 10.dp)
+                                        .testTag("export_file_${'$'}{file.id}")
+                                ) {
+                                    Text(
+                                        text = file.relativePath,
+                                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                        color = if (isSelected) AppleBlue else AppleWhite
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = "${'$'}{file.languageBadge} • ${'$'}{file.content.lines().size} lines",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = AppleMutedGray
+                                    )
+                                }
+                            }
+                        }
+
+                        // Right Column: Code Viewer & Export Actions
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(OledBlack)
+                                .border(1.dp, AppleCardBorder, RoundedCornerShape(16.dp))
+                                .padding(14.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = displayedTitle,
+                                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                        color = AppleWhite
+                                    )
+                                    Text(
+                                        text = displayedSubtitle,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = AppleMutedGray
+                                    )
+                                }
+
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    ExportPillButton(
+                                        label = "Copy",
+                                        icon = Icons.Default.ContentCopy,
+                                        accent = AppleBlue,
+                                        onClick = {
+                                            copyToClipboard(
+                                                context,
+                                                if (showDiagnosticLogTab) "diagnostic_log.txt" else selectedFile.relativePath,
+                                                displayedContent
+                                            )
+                                        }
+                                    )
+                                    ExportPillButton(
+                                        label = "Download",
+                                        icon = Icons.Default.Download,
+                                        accent = AppleGreen,
+                                        onClick = {
+                                            val fileName = if (showDiagnosticLogTab) {
+                                                "diagnostic_log.txt"
+                                            } else {
+                                                selectedFile.relativePath.substringAfterLast('/')
+                                            }
+                                            saveDocumentLauncher.launch(fileName)
+                                        }
+                                    )
+                                    ExportPillButton(
+                                        label = "Share",
+                                        icon = Icons.Default.Share,
+                                        accent = AppleWhite,
+                                        onClick = {
+                                            shareTextContent(
+                                                context,
+                                                if (showDiagnosticLogTab) "diagnostic_log.txt" else selectedFile.relativePath,
+                                                displayedContent
+                                            )
+                                        }
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            val vScroll = rememberScrollState()
+                            val hScroll = rememberScrollState()
+
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(Color(0xFF0A0A0C))
+                                    .padding(12.dp)
+                            ) {
+                                if (showDiagnosticLogTab) {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .verticalScroll(vScroll)
+                                            .horizontalScroll(hScroll),
+                                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                                    ) {
+                                        // READ-ONLY Bluetooth stack diagnostics section
+                                        Column(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clip(RoundedCornerShape(10.dp))
+                                                .background(AppleCardElevated)
+                                                .border(1.dp, AppleGreen.copy(alpha = 0.5f), RoundedCornerShape(10.dp))
+                                                .padding(12.dp)
+                                                .testTag("bluetooth_stack_diagnostics_section")
+                                        ) {
+                                            Text(
+                                                text = "Bluetooth stack diagnostics (READ-ONLY)",
+                                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                                color = AppleGreen
+                                            )
+                                            Spacer(modifier = Modifier.height(6.dp))
+                                            Text(
+                                                text = stackDiagnosticsText,
+                                                style = MaterialTheme.typography.labelMedium,
+                                                color = Color(0xFFE5F0FF)
+                                            )
+                                        }
+
+                                        // Live Diagnostic Event Trace section
+                                        Column(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clip(RoundedCornerShape(10.dp))
+                                                .background(Color(0xFF0D0D10))
+                                                .border(1.dp, AppleCardBorder, RoundedCornerShape(10.dp))
+                                                .padding(12.dp)
+                                        ) {
+                                            Text(
+                                                text = "Live Event Trace (${'$'}{diagnosticLogs.size} / 1000 max)",
+                                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                                color = AppleBlue
+                                            )
+                                            Spacer(modifier = Modifier.height(6.dp))
+                                            Text(
+                                                text = liveLogText,
+                                                style = MaterialTheme.typography.labelMedium,
+                                                color = Color(0xFFE5F0FF)
+                                            )
+                                        }
+                                    }
+                                } else {
+                                    Text(
+                                        text = displayedContent,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = Color(0xFFE5F0FF),
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .verticalScroll(vScroll)
+                                            .horizontalScroll(hScroll)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ExportPillButton(
+    label: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    accent: Color,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(10.dp))
+            .background(accent.copy(alpha = 0.16f))
+            .border(1.dp, accent.copy(alpha = 0.6f), RoundedCornerShape(10.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = label,
+            tint = accent,
+            modifier = Modifier.size(16.dp)
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+            color = AppleWhite
+        )
+    }
+}
+
+private fun copyToClipboard(context: Context, label: String, content: String) {
+    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+    clipboard.setPrimaryClip(ClipData.newPlainText(label, content))
+    Toast.makeText(context, "Copied ${'$'}label", Toast.LENGTH_SHORT).show()
+}
+
+private fun shareTextContent(context: Context, subject: String, content: String) {
+    val sendIntent = Intent(Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(Intent.EXTRA_SUBJECT, subject)
+        putExtra(Intent.EXTRA_TEXT, content)
+    }
+    context.startActivity(Intent.createChooser(sendIntent, "Export ${'$'}subject"))
+}""",
         ),
         ExportableProjectFile(
             id = "theme_color",
             title = "Color.kt",
             relativePath = "app/src/main/java/com/example/ui/theme/Color.kt",
-            languageBadge = "Kotlin • OLED Color Palette",
-            description = "Deep OLED black (#000000), elevated cards (#1C1C1E), Apple Green (#30D158), and Apple Blue (#0A84FF).",
-            content = "package com.example.ui.theme\n\nimport androidx.compose.ui.graphics.Color\n\n// Apple-Inspired Minimalist OLED Dark Palette (1280x720 Car Head Unit)\nval OledBlack = Color(0xFF000000)\nval AppleCardSurface = Color(0xFF1C1C1E)\nval AppleCardElevated = Color(0xFF242426)\nval AppleCardBorder = Color(0xFF2C2C2E)\nval AppleGlassOverlay = Color(0xE61C1C1E)\n\n// Status & Action Accents\nval AppleGreen = Color(0xFF30D158)\nval AppleBlue = Color(0xFF0A84FF)\nval AppleMutedGray = Color(0xFF8E8E93)\nval AppleSubtleButtonBg = Color(0xFF2C2C2E)\nval AppleRed = Color(0xFFFF453A)\n\n// Text Hierarchy\nval AppleWhite = Color(0xFFFFFFFF)\nval AppleSecondaryLabel = Color(0xFFEBEBF5)"
+            languageBadge = "Kotlin",
+            description = "OLED Black & Apple Accent Palette",
+            content = """package com.example.ui.theme
+
+import androidx.compose.ui.graphics.Color
+
+// Apple-Inspired Minimalist OLED Dark Palette (1280x720 Car Head Unit)
+val OledBlack = Color(0xFF000000)
+val AppleCardSurface = Color(0xFF1C1C1E)
+val AppleCardElevated = Color(0xFF242426)
+val AppleCardBorder = Color(0xFF2C2C2E)
+val AppleGlassOverlay = Color(0xE61C1C1E)
+
+// Status & Action Accents
+val AppleGreen = Color(0xFF30D158)
+val AppleBlue = Color(0xFF0A84FF)
+val AppleMutedGray = Color(0xFF8E8E93)
+val AppleSubtleButtonBg = Color(0xFF2C2C2E)
+val AppleRed = Color(0xFFFF453A)
+
+// Text Hierarchy
+val AppleWhite = Color(0xFFFFFFFF)
+val AppleSecondaryLabel = Color(0xFFEBEBF5)""",
         ),
         ExportableProjectFile(
             id = "theme_type",
             title = "Type.kt",
             relativePath = "app/src/main/java/com/example/ui/theme/Type.kt",
-            languageBadge = "Kotlin • Heebo Hebrew Typography",
-            description = "Typography definitions using bundled Heebo and JetBrains Mono fonts.",
-            content = "package com.example.ui.theme\n\nimport androidx.compose.material3.Typography\nimport androidx.compose.ui.text.TextStyle\nimport androidx.compose.ui.text.font.Font\nimport androidx.compose.ui.text.font.FontFamily\nimport androidx.compose.ui.text.font.FontWeight\nimport androidx.compose.ui.unit.sp\nimport com.example.R\n\nval HeeboFontFamily = FontFamily(\n    Font(R.font.heebo, FontWeight.Normal),\n    Font(R.font.heebo, FontWeight.Medium),\n    Font(R.font.heebo, FontWeight.Bold)\n)\n\nval JetBrainsMonoFontFamily = FontFamily(\n    Font(R.font.jetbrains_mono, FontWeight.Normal),\n    Font(R.font.jetbrains_mono, FontWeight.Medium),\n    Font(R.font.jetbrains_mono, FontWeight.Bold)\n)\n\nval Typography = Typography(\n    headlineLarge = TextStyle(\n        fontFamily = HeeboFontFamily,\n        fontWeight = FontWeight.Bold,\n        fontSize = 30.sp,\n        lineHeight = 36.sp,\n        letterSpacing = (-0.3).sp\n    ),\n    headlineMedium = TextStyle(\n        fontFamily = HeeboFontFamily,\n        fontWeight = FontWeight.Bold,\n        fontSize = 24.sp,\n        lineHeight = 30.sp,\n        letterSpacing = (-0.2).sp\n    ),\n    titleLarge = TextStyle(\n        fontFamily = HeeboFontFamily,\n        fontWeight = FontWeight.Bold,\n        fontSize = 20.sp,\n        lineHeight = 26.sp\n    ),\n    titleMedium = TextStyle(\n        fontFamily = HeeboFontFamily,\n        fontWeight = FontWeight.Medium,\n        fontSize = 17.sp,\n        lineHeight = 22.sp\n    ),\n    bodyLarge = TextStyle(\n        fontFamily = HeeboFontFamily,\n        fontWeight = FontWeight.Normal,\n        fontSize = 16.sp,\n        lineHeight = 22.sp\n    ),\n    bodyMedium = TextStyle(\n        fontFamily = HeeboFontFamily,\n        fontWeight = FontWeight.Normal,\n        fontSize = 14.sp,\n        lineHeight = 20.sp\n    ),\n    labelLarge = TextStyle(\n        fontFamily = HeeboFontFamily,\n        fontWeight = FontWeight.Bold,\n        fontSize = 15.sp,\n        lineHeight = 20.sp\n    ),\n    labelMedium = TextStyle(\n        fontFamily = JetBrainsMonoFontFamily,\n        fontWeight = FontWeight.Medium,\n        fontSize = 12.sp,\n        lineHeight = 16.sp\n    )\n)"
+            languageBadge = "Kotlin",
+            description = "Heebo & JetBrains Mono Typography",
+            content = """package com.example.ui.theme
+
+import androidx.compose.material3.Typography
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+import com.example.R
+
+val HeeboFontFamily = FontFamily(
+    Font(R.font.heebo, FontWeight.Normal),
+    Font(R.font.heebo, FontWeight.Medium),
+    Font(R.font.heebo, FontWeight.Bold)
+)
+
+val JetBrainsMonoFontFamily = FontFamily(
+    Font(R.font.jetbrains_mono, FontWeight.Normal),
+    Font(R.font.jetbrains_mono, FontWeight.Medium),
+    Font(R.font.jetbrains_mono, FontWeight.Bold)
+)
+
+val Typography = Typography(
+    headlineLarge = TextStyle(
+        fontFamily = HeeboFontFamily,
+        fontWeight = FontWeight.Bold,
+        fontSize = 30.sp,
+        lineHeight = 36.sp,
+        letterSpacing = (-0.3).sp
+    ),
+    headlineMedium = TextStyle(
+        fontFamily = HeeboFontFamily,
+        fontWeight = FontWeight.Bold,
+        fontSize = 24.sp,
+        lineHeight = 30.sp,
+        letterSpacing = (-0.2).sp
+    ),
+    titleLarge = TextStyle(
+        fontFamily = HeeboFontFamily,
+        fontWeight = FontWeight.Bold,
+        fontSize = 20.sp,
+        lineHeight = 26.sp
+    ),
+    titleMedium = TextStyle(
+        fontFamily = HeeboFontFamily,
+        fontWeight = FontWeight.Medium,
+        fontSize = 17.sp,
+        lineHeight = 22.sp
+    ),
+    bodyLarge = TextStyle(
+        fontFamily = HeeboFontFamily,
+        fontWeight = FontWeight.Normal,
+        fontSize = 16.sp,
+        lineHeight = 22.sp
+    ),
+    bodyMedium = TextStyle(
+        fontFamily = HeeboFontFamily,
+        fontWeight = FontWeight.Normal,
+        fontSize = 14.sp,
+        lineHeight = 20.sp
+    ),
+    labelLarge = TextStyle(
+        fontFamily = HeeboFontFamily,
+        fontWeight = FontWeight.Bold,
+        fontSize = 15.sp,
+        lineHeight = 20.sp
+    ),
+    labelMedium = TextStyle(
+        fontFamily = JetBrainsMonoFontFamily,
+        fontWeight = FontWeight.Medium,
+        fontSize = 12.sp,
+        lineHeight = 16.sp
+    )
+)""",
         ),
         ExportableProjectFile(
-            id = "theme_theme",
+            id = "theme_main",
             title = "Theme.kt",
             relativePath = "app/src/main/java/com/example/ui/theme/Theme.kt",
-            languageBadge = "Kotlin • Material 3 Dark Theme",
-            description = "Material 3 dark color scheme wrapper.",
-            content = "package com.example.ui.theme\n\nimport androidx.compose.material3.MaterialTheme\nimport androidx.compose.material3.darkColorScheme\nimport androidx.compose.runtime.Composable\nimport androidx.compose.ui.graphics.Color\n\nprivate val AppleDarkColorScheme = darkColorScheme(\n    primary = AppleBlue,\n    onPrimary = AppleWhite,\n    primaryContainer = Color(0xFF003870),\n    onPrimaryContainer = AppleWhite,\n    secondary = AppleGreen,\n    onSecondary = Color(0xFF00210B),\n    secondaryContainer = Color(0xFF113D1E),\n    onSecondaryContainer = AppleWhite,\n    background = OledBlack,\n    onBackground = AppleWhite,\n    surface = AppleCardSurface,\n    onSurface = AppleWhite,\n    surfaceVariant = AppleCardElevated,\n    onSurfaceVariant = AppleMutedGray,\n    outline = AppleCardBorder,\n    error = AppleRed,\n    onError = AppleWhite\n)\n\n@Composable\nfun MyApplicationTheme(\n    content: @Composable () -> Unit\n) {\n    MaterialTheme(\n        colorScheme = AppleDarkColorScheme,\n        typography = Typography,\n        content = content\n    )\n}"
+            languageBadge = "Kotlin",
+            description = "Material 3 Dark Car Theme",
+            content = """package com.example.ui.theme
+
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
+
+private val AppleDarkColorScheme = darkColorScheme(
+    primary = AppleBlue,
+    onPrimary = AppleWhite,
+    primaryContainer = Color(0xFF003870),
+    onPrimaryContainer = AppleWhite,
+    secondary = AppleGreen,
+    onSecondary = Color(0xFF00210B),
+    secondaryContainer = Color(0xFF113D1E),
+    onSecondaryContainer = AppleWhite,
+    background = OledBlack,
+    onBackground = AppleWhite,
+    surface = AppleCardSurface,
+    onSurface = AppleWhite,
+    surfaceVariant = AppleCardElevated,
+    onSurfaceVariant = AppleMutedGray,
+    outline = AppleCardBorder,
+    error = AppleRed,
+    onError = AppleWhite
+)
+
+@Composable
+fun MyApplicationTheme(
+    content: @Composable () -> Unit
+) {
+    MaterialTheme(
+        colorScheme = AppleDarkColorScheme,
+        typography = Typography,
+        content = content
+    )
+}""",
         ),
         ExportableProjectFile(
             id = "android_manifest",
             title = "AndroidManifest.xml",
             relativePath = "app/src/main/AndroidManifest.xml",
-            languageBadge = "XML • Android Manifest",
-            description = "Bluetooth permissions, KILL_BACKGROUND_PROCESSES, and Android 11+ package visibility queries.",
-            content = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\"\n    xmlns:tools=\"http://schemas.android.com/tools\">\n\n    <!-- Legacy Bluetooth Permissions (Android 10-11 & Car Head Unit MCU stacks) -->\n    <uses-permission android:name=\"android.permission.BLUETOOTH\" />\n    <uses-permission android:name=\"android.permission.BLUETOOTH_ADMIN\" />\n\n    <!-- Android 12-13+ Runtime Bluetooth Permissions -->\n    <uses-permission android:name=\"android.permission.BLUETOOTH_CONNECT\" />\n    <uses-permission\n        android:name=\"android.permission.BLUETOOTH_SCAN\"\n        android:usesPermissionFlags=\"neverForLocation\"\n        tools:targetApi=\"s\" />\n\n    <!-- Background Memory Guard: Kill stuck Bluetooth & ZLink bridge tasks -->\n    <uses-permission android:name=\"android.permission.KILL_BACKGROUND_PROCESSES\" />\n\n    <uses-feature\n        android:name=\"android.hardware.bluetooth\"\n        android:required=\"false\" />\n\n    <!-- Package visibility for Android 11+ so killBackgroundProcesses can target stuck car BT/bridge daemons -->\n    <queries>\n        <package android:name=\"com.ts.bt\" />\n        <package android:name=\"com.asr.bt\" />\n        <package android:name=\"com.zjinnova.zlink\" />\n        <package android:name=\"com.autochips.bluetooth\" />\n        <package android:name=\"com.syu.bt\" />\n        <package android:name=\"com.my.bt\" />\n        <package android:name=\"com.android.bluetooth\" />\n    </queries>\n\n    <application\n        android:allowBackup=\"true\"\n        android:dataExtractionRules=\"@xml/data_extraction_rules\"\n        android:fullBackupContent=\"@xml/backup_rules\"\n        android:icon=\"@mipmap/ic_launcher\"\n        android:label=\"@string/app_name\"\n        android:roundIcon=\"@mipmap/ic_launcher_round\"\n        android:supportsRtl=\"true\"\n        android:theme=\"@style/Theme.MyApplication\">\n        <activity\n            android:name=\".MainActivity\"\n            android:configChanges=\"orientation|screenSize|screenLayout|keyboardHidden|uiMode\"\n            android:exported=\"true\"\n            android:label=\"@string/app_name\"\n            android:launchMode=\"singleTop\"\n            android:screenOrientation=\"sensorLandscape\"\n            android:theme=\"@style/Theme.MyApplication\">\n            <intent-filter>\n                <action android:name=\"android.intent.action.MAIN\" />\n\n                <category android:name=\"android.intent.category.LAUNCHER\" />\n                <category android:name=\"android.intent.category.CAR_LAUNCHER\" />\n                <category android:name=\"android.intent.category.DEFAULT\" />\n            </intent-filter>\n        </activity>\n    </application>\n\n</manifest>"
+            languageBadge = "XML",
+            description = "Bluetooth Permissions, Package Queries & Landscape Car Launcher",
+            content = """<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Legacy Bluetooth Permissions (Android 10-11 & Car Head Unit MCU stacks) -->
+    <uses-permission android:name="android.permission.BLUETOOTH" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
+
+    <!-- Android 12-13+ Runtime Bluetooth Permissions -->
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_SCAN"
+        android:usesPermissionFlags="neverForLocation"
+        tools:targetApi="s" />
+
+    <!-- Background Memory Guard: Kill stuck Bluetooth & ZLink bridge tasks -->
+    <uses-permission android:name="android.permission.KILL_BACKGROUND_PROCESSES" />
+
+    <uses-feature
+        android:name="android.hardware.bluetooth"
+        android:required="false" />
+
+    <!-- Package visibility for Android 11+ so killBackgroundProcesses can target stuck car BT/bridge daemons -->
+    <queries>
+        <package android:name="com.ts.bt" />
+        <package android:name="com.asr.bt" />
+        <package android:name="com.zjinnova.zlink" />
+        <package android:name="com.autochips.bluetooth" />
+        <package android:name="com.syu.bt" />
+        <package android:name="com.my.bt" />
+        <package android:name="com.android.bluetooth" />
+    </queries>
+
+    <application
+        android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.MyApplication">
+        <activity
+            android:name=".MainActivity"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|uiMode"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:launchMode="singleTop"
+            android:screenOrientation="sensorLandscape"
+            android:theme="@style/Theme.MyApplication">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.CAR_LAUNCHER" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+    </application>
+
+</manifest>""",
         ),
         ExportableProjectFile(
             id = "app_build_gradle",
             title = "app/build.gradle.kts",
             relativePath = "app/build.gradle.kts",
-            languageBadge = "Kotlin DSL • App Build Script",
-            description = "App-level Gradle configuration, signing configs, and Compose dependencies.",
-            content = "import com.google.gms.googleservices.GoogleServicesPlugin.MissingGoogleServicesStrategy\n\nplugins {\n  alias(libs.plugins.android.application)\n  alias(libs.plugins.kotlin.compose)\n  alias(libs.plugins.google.devtools.ksp)\n  alias(libs.plugins.secrets)\n  alias(libs.plugins.google.services)\n}\n\nandroid {\n  namespace = \"com.example\"\n  compileSdk { version = release(36) { minorApiLevel = 1 } }\n\n  defaultConfig {\n    applicationId = \"com.aistudio.larkbtswitcher.xkrvqp\"\n    minSdk = 24\n    targetSdk = 36\n    versionCode = 1\n    versionName = \"1.0\"\n\n    testInstrumentationRunner = \"androidx.test.runner.AndroidJUnitRunner\"\n  }\n\n  // Do not remove or modify these signingConfigs. They are necessary for building, installing,\n  // and updating Android apps in AI Studio.\n  signingConfigs {\n    create(\"release\") {\n      val keystorePath = System.getenv(\"KEYSTORE_PATH\") ?: \"\${rootDir}/my-upload-key.jks\"\n      storeFile = file(keystorePath)\n      storePassword = System.getenv(\"STORE_PASSWORD\")\n      keyAlias = \"upload\"\n      keyPassword = System.getenv(\"KEY_PASSWORD\")\n    }\n    create(\"debugConfig\") {\n      storeFile = file(\"\${rootDir}/debug.keystore\")\n      storePassword = \"android\"\n      keyAlias = \"androiddebugkey\"\n      keyPassword = \"android\"\n    }\n  }\n\n  buildTypes {\n    release {\n      isCrunchPngs = false\n      isMinifyEnabled = false\n      proguardFiles(getDefaultProguardFile(\"proguard-android-optimize.txt\"), \"proguard-rules.pro\")\n      // Do not remove or modify this signingConfig assignment. It is necessary for Android apps in\n      // AI Studio.\n      signingConfig = signingConfigs.getByName(\"release\")\n    }\n    debug {\n      // Do not remove or modify this signingConfig assignment. It is necessary for Android apps in\n      // AI Studio.\n      signingConfig = signingConfigs.getByName(\"debugConfig\")\n    }\n  }\n  compileOptions {\n    sourceCompatibility = JavaVersion.VERSION_11\n    targetCompatibility = JavaVersion.VERSION_11\n  }\n  buildFeatures {\n    compose = true\n    buildConfig = true\n  }\n  testOptions { unitTests { isIncludeAndroidResources = true } }\n  dependenciesInfo {\n    includeInApk = false\n    includeInBundle = true\n  }\n}\n\n// Configure the Secrets Gradle Plugin to use .env and .env.example files\n// to match the convention used in Web projects.\nsecrets {\n  propertiesFileName = \".env\"\n  defaultPropertiesFileName = \".env.example\"\n  ignoreList.add(\"FIREBASE_APPCHECK_DEBUG_TOKEN\")\n}\n\ngoogleServices { missingGoogleServicesStrategy = MissingGoogleServicesStrategy.WARN }\n\n// Some unused dependencies are commented out below instead of being removed.\n// This makes it easy to add them back in the future if needed.\ndependencies {\n  implementation(platform(libs.androidx.compose.bom))\n  // implementation(platform(libs.firebase.bom))\n  // implementation(libs.accompanist.permissions)\n  implementation(libs.androidx.activity.compose)\n  // implementation(libs.androidx.camera.camera2)\n  // implementation(libs.androidx.camera.core)\n  // implementation(libs.androidx.camera.lifecycle)\n  // implementation(libs.androidx.camera.view)\n  implementation(libs.androidx.compose.material.icons.core)\n  implementation(libs.androidx.compose.material.icons.extended)\n  implementation(libs.androidx.compose.material3)\n  implementation(libs.androidx.compose.ui)\n  implementation(libs.androidx.compose.ui.graphics)\n  implementation(libs.androidx.compose.ui.tooling.preview)\n  implementation(libs.androidx.core.ktx)\n  implementation(libs.androidx.datastore.preferences)\n  implementation(libs.androidx.lifecycle.runtime.compose)\n  implementation(libs.androidx.lifecycle.runtime.ktx)\n  implementation(libs.androidx.lifecycle.viewmodel.compose)\n  // implementation(libs.androidx.navigation.compose)\n  // implementation(libs.androidx.room.ktx)\n  // implementation(libs.androidx.room.runtime)\n  // implementation(libs.coil.compose)\n  // implementation(libs.converter.moshi)\n  // implementation(libs.firebase.ai)\n  // Uncomment to use Firestore:\n  // implementation(libs.firebase.firestore)\n\n  // Uncomment ALL FOUR of the following dependencies together to use Firebase Auth and Google\n  // Sign-In via Credential Manager:\n  // implementation(libs.firebase.auth)\n  // implementation(libs.androidx.credentials)\n  // implementation(libs.androidx.credentials.play.services)\n  // implementation(libs.googleid)\n  // implementation(libs.firebase.appcheck.recaptcha)\n  // implementation(libs.firebase.appcheck.debug)\n  implementation(libs.kotlinx.coroutines.android)\n  implementation(libs.kotlinx.coroutines.core)\n  // implementation(libs.logging.interceptor)\n  // implementation(libs.moshi.kotlin)\n  // implementation(libs.okhttp)\n  // implementation(libs.play.services.location)\n  // implementation(libs.retrofit)\n  testImplementation(libs.androidx.compose.ui.test.junit4)\n  testImplementation(libs.androidx.core)\n  testImplementation(libs.androidx.junit)\n  testImplementation(libs.junit)\n  testImplementation(libs.kotlinx.coroutines.test)\n  testImplementation(libs.robolectric)\n  androidTestImplementation(platform(libs.androidx.compose.bom))\n  androidTestImplementation(libs.androidx.compose.ui.test.junit4)\n  androidTestImplementation(libs.androidx.espresso.core)\n  androidTestImplementation(libs.androidx.junit)\n  androidTestImplementation(libs.androidx.runner)\n  debugImplementation(libs.androidx.compose.ui.test.manifest)\n  debugImplementation(libs.androidx.compose.ui.tooling)\n  // \"ksp\"(libs.androidx.room.compiler)\n  // \"ksp\"(libs.moshi.kotlin.codegen)\n}"
+            languageBadge = "Kotlin DSL",
+            description = "App Module Gradle Configuration",
+            content = """import com.google.gms.googleservices.GoogleServicesPlugin.MissingGoogleServicesStrategy
+
+plugins {
+  alias(libs.plugins.android.application)
+  alias(libs.plugins.kotlin.compose)
+  alias(libs.plugins.google.devtools.ksp)
+  alias(libs.plugins.secrets)
+  alias(libs.plugins.google.services)
+}
+
+android {
+  namespace = "com.example"
+  compileSdk { version = release(36) { minorApiLevel = 1 } }
+
+  defaultConfig {
+    applicationId = "com.aistudio.larkbtswitcher.xkrvqp"
+    minSdk = 24
+    targetSdk = 36
+    versionCode = 1
+    versionName = "1.0"
+
+    testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+  }
+
+  // Do not remove or modify these signingConfigs. They are necessary for building, installing,
+  // and updating Android apps in AI Studio.
+  signingConfigs {
+    create("release") {
+      val keystorePath = System.getenv("KEYSTORE_PATH") ?: "${'$'}{rootDir}/my-upload-key.jks"
+      storeFile = file(keystorePath)
+      storePassword = System.getenv("STORE_PASSWORD")
+      keyAlias = "upload"
+      keyPassword = System.getenv("KEY_PASSWORD")
+    }
+    create("debugConfig") {
+      storeFile = file("${'$'}{rootDir}/debug.keystore")
+      storePassword = "android"
+      keyAlias = "androiddebugkey"
+      keyPassword = "android"
+    }
+  }
+
+  buildTypes {
+    release {
+      isCrunchPngs = false
+      isMinifyEnabled = false
+      proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+      // Do not remove or modify this signingConfig assignment. It is necessary for Android apps in
+      // AI Studio.
+      signingConfig = signingConfigs.getByName("release")
+    }
+    debug {
+      // Do not remove or modify this signingConfig assignment. It is necessary for Android apps in
+      // AI Studio.
+      signingConfig = signingConfigs.getByName("debugConfig")
+    }
+  }
+  compileOptions {
+    sourceCompatibility = JavaVersion.VERSION_11
+    targetCompatibility = JavaVersion.VERSION_11
+  }
+  buildFeatures {
+    compose = true
+    buildConfig = true
+  }
+  testOptions { unitTests { isIncludeAndroidResources = true } }
+  dependenciesInfo {
+    includeInApk = false
+    includeInBundle = true
+  }
+}
+
+// Configure the Secrets Gradle Plugin to use .env and .env.example files
+// to match the convention used in Web projects.
+secrets {
+  propertiesFileName = ".env"
+  defaultPropertiesFileName = ".env.example"
+  ignoreList.add("FIREBASE_APPCHECK_DEBUG_TOKEN")
+}
+
+googleServices { missingGoogleServicesStrategy = MissingGoogleServicesStrategy.WARN }
+
+// Some unused dependencies are commented out below instead of being removed.
+// This makes it easy to add them back in the future if needed.
+dependencies {
+  implementation(platform(libs.androidx.compose.bom))
+  // implementation(platform(libs.firebase.bom))
+  // implementation(libs.accompanist.permissions)
+  implementation(libs.androidx.activity.compose)
+  // implementation(libs.androidx.camera.camera2)
+  // implementation(libs.androidx.camera.core)
+  // implementation(libs.androidx.camera.lifecycle)
+  // implementation(libs.androidx.camera.view)
+  implementation(libs.androidx.compose.material.icons.core)
+  implementation(libs.androidx.compose.material.icons.extended)
+  implementation(libs.androidx.compose.material3)
+  implementation(libs.androidx.compose.ui)
+  implementation(libs.androidx.compose.ui.graphics)
+  implementation(libs.androidx.compose.ui.tooling.preview)
+  implementation(libs.androidx.core.ktx)
+  implementation(libs.androidx.datastore.preferences)
+  implementation(libs.androidx.lifecycle.runtime.compose)
+  implementation(libs.androidx.lifecycle.runtime.ktx)
+  implementation(libs.androidx.lifecycle.viewmodel.compose)
+  // implementation(libs.androidx.navigation.compose)
+  // implementation(libs.androidx.room.ktx)
+  // implementation(libs.androidx.room.runtime)
+  // implementation(libs.coil.compose)
+  // implementation(libs.converter.moshi)
+  // implementation(libs.firebase.ai)
+  // Uncomment to use Firestore:
+  // implementation(libs.firebase.firestore)
+
+  // Uncomment ALL FOUR of the following dependencies together to use Firebase Auth and Google
+  // Sign-In via Credential Manager:
+  // implementation(libs.firebase.auth)
+  // implementation(libs.androidx.credentials)
+  // implementation(libs.androidx.credentials.play.services)
+  // implementation(libs.googleid)
+  // implementation(libs.firebase.appcheck.recaptcha)
+  // implementation(libs.firebase.appcheck.debug)
+  implementation(libs.kotlinx.coroutines.android)
+  implementation(libs.kotlinx.coroutines.core)
+  // implementation(libs.logging.interceptor)
+  // implementation(libs.moshi.kotlin)
+  // implementation(libs.okhttp)
+  // implementation(libs.play.services.location)
+  // implementation(libs.retrofit)
+  testImplementation(libs.androidx.compose.ui.test.junit4)
+  testImplementation(libs.androidx.core)
+  testImplementation(libs.androidx.junit)
+  testImplementation(libs.junit)
+  testImplementation(libs.kotlinx.coroutines.test)
+  testImplementation(libs.robolectric)
+  androidTestImplementation(platform(libs.androidx.compose.bom))
+  androidTestImplementation(libs.androidx.compose.ui.test.junit4)
+  androidTestImplementation(libs.androidx.espresso.core)
+  androidTestImplementation(libs.androidx.junit)
+  androidTestImplementation(libs.androidx.runner)
+  debugImplementation(libs.androidx.compose.ui.test.manifest)
+  debugImplementation(libs.androidx.compose.ui.tooling)
+  // "ksp"(libs.androidx.room.compiler)
+  // "ksp"(libs.moshi.kotlin.codegen)
+}""",
         ),
         ExportableProjectFile(
             id = "settings_gradle",
             title = "settings.gradle.kts",
             relativePath = "settings.gradle.kts",
-            languageBadge = "Kotlin DSL • Gradle Settings",
-            description = "Root project name and repository configuration.",
-            content = "pluginManagement {\n  repositories {\n    google {\n      content {\n        includeGroupByRegex(\"com\\\\.android.*\")\n        includeGroupByRegex(\"com\\\\.google.*\")\n        includeGroupByRegex(\"androidx.*\")\n      }\n    }\n    mavenCentral()\n    gradlePluginPortal()\n  }\n}\n\nplugins { id(\"org.gradle.toolchains.foojay-resolver-convention\") version \"1.0.0\" }\n\ndependencyResolutionManagement {\n  repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)\n  repositories {\n    google()\n    mavenCentral()\n  }\n}\n\nrootProject.name = \"LarkBT Switcher\"\n\ninclude(\":app\")"
+            languageBadge = "Kotlin DSL",
+            description = "Root Project Gradle Settings",
+            content = """pluginManagement {
+  repositories {
+    google {
+      content {
+        includeGroupByRegex("com\\.android.*")
+        includeGroupByRegex("com\\.google.*")
+        includeGroupByRegex("androidx.*")
+      }
+    }
+    mavenCentral()
+    gradlePluginPortal()
+  }
+}
+
+plugins { id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0" }
+
+dependencyResolutionManagement {
+  repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+  repositories {
+    google()
+    mavenCentral()
+  }
+}
+
+rootProject.name = "LarkBT Switcher"
+
+include(":app")""",
         ),
         ExportableProjectFile(
             id = "github_workflow",
             title = "build-apk.yml",
             relativePath = ".github/workflows/build-apk.yml",
-            languageBadge = "YAML • GitHub Actions CI",
-            description = "Automated GitHub Actions workflow to build the debug APK.",
-            content = "name: Build LarkBT Switcher APK (ASR8601 lark_evb)\n\non:\n  push:\n    branches: [ \"main\", \"master\" ]\n  pull_request:\n    branches: [ \"main\", \"master\" ]\n  workflow_dispatch:\n\njobs:\n  build-apk:\n    runs-on: ubuntu-latest\n    steps:\n      - name: Checkout Source\n        uses: actions/checkout@v4\n\n      - name: Set up JDK 17\n        uses: actions/setup-java@v4\n        with:\n          java-version: '17'\n          distribution: 'temurin'\n\n      - name: Setup Gradle\n        uses: gradle/actions/setup-gradle@v3\n\n      - name: Generate Debug Keystore if missing\n        run: |\n          if [ ! -f debug.keystore ]; then\n            keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname \"CN=Android Debug,O=Android,C=US\"\n          fi\n\n      - name: Build Debug APK for lark_evb Head Unit\n        run: ./gradlew assembleDebug --stacktrace\n\n      - name: Upload Ready-to-Install Car Head Unit APK\n        uses: actions/upload-artifact@v4\n        with:\n          name: LarkBT-Switcher-ASR8601-debug\n          path: app/build/outputs/apk/debug/*.apk"
+            languageBadge = "YAML",
+            description = "GitHub Actions Automated APK Build Workflow",
+            content = """name: Build LarkBT Switcher APK (ASR8601 lark_evb)
+
+on:
+  push:
+    branches: [ "main", "master", "fix/workflow-build-apk" ]
+  pull_request:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Source
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '9.3.1'
+
+      - name: Generate Debug Keystore if missing
+        run: |
+          if [ ! -f debug.keystore ]; then
+            keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+          fi
+
+      - name: Build Debug APK for lark_evb Head Unit
+        run: gradle assembleDebug --stacktrace
+
+      - name: Upload Ready-to-Install Car Head Unit APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: LarkBT-Switcher-ASR8601-debug
+          path: app/build/outputs/apk/debug/*.apk"""
         )
     )
 }

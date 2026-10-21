@@ -10,14 +10,20 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import androidx.core.content.ContextCompat
 import com.example.model.FactoryBtPackages
 import com.example.model.LarkBtProfiles
 import com.example.model.PairedPhoneItem
 import java.lang.reflect.Method
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -46,6 +52,15 @@ class LarkHardwareManager(
     private val aclConnectedAddresses = ConcurrentHashMap.newKeySet<String>()
     private var receiverRegistered = false
 
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private val diagTimeFormat = SimpleDateFormat("HH:mm:ss.SSS", Locale.US)
+    private val proxyRequestStatus = ConcurrentHashMap<Int, String>()
+    private val proxyCallbackStatus = ConcurrentHashMap<Int, String>()
+    private val proxyCallbackFired = ConcurrentHashMap<Int, Boolean>()
+    private val pendingTimeoutRunnables = ConcurrentHashMap<Int, Runnable>()
+
+    private fun nowTime(): String = diagTimeFormat.format(Date())
+
     private fun logEvent(msg: String) {
         Log.i("LarkBT", msg)
         onLog(msg)
@@ -53,8 +68,12 @@ class LarkHardwareManager(
 
     private val profileServiceListener = object : BluetoothProfile.ServiceListener {
         override fun onServiceConnected(profile: Int, proxy: BluetoothProfile) {
+            pendingTimeoutRunnables.remove(profile)?.let { mainHandler.removeCallbacks(it) }
+            val ts = nowTime()
+            proxyCallbackFired[profile] = true
+            proxyCallbackStatus[profile] = "onServiceConnected at $ts (class=${proxy.javaClass.simpleName})"
             profileProxies[profile] = proxy
-            logEvent("Proxy bound: profile=$profile class=${proxy.javaClass.simpleName}")
+            logEvent("Proxy bound: profile=$profile class=${proxy.javaClass.simpleName} (onServiceConnected at $ts)")
             if (profile == LarkBtProfiles.PBAP_CLIENT) {
                 blockPbapClientOnAllDevices()
             }
@@ -62,8 +81,12 @@ class LarkHardwareManager(
         }
 
         override fun onServiceDisconnected(profile: Int) {
+            pendingTimeoutRunnables.remove(profile)?.let { mainHandler.removeCallbacks(it) }
+            val ts = nowTime()
+            proxyCallbackFired[profile] = true
+            proxyCallbackStatus[profile] = "onServiceDisconnected at $ts"
             profileProxies.remove(profile)
-            logEvent("Proxy unbound: profile=$profile")
+            logEvent("Proxy unbound: profile=$profile (onServiceDisconnected at $ts)")
             onHardwareStateChanged()
         }
     }
@@ -127,9 +150,12 @@ class LarkHardwareManager(
     fun initialize() {
         registerReceivers()
         bindAllProfileProxies()
+        logBluetoothStackDiagnostics("startup")
     }
 
     fun release() {
+        pendingTimeoutRunnables.values.forEach { mainHandler.removeCallbacks(it) }
+        pendingTimeoutRunnables.clear()
         if (receiverRegistered) {
             runCatching { context.unregisterReceiver(bluetoothReceiver) }
             receiverRegistered = false
@@ -165,24 +191,65 @@ class LarkHardwareManager(
         logEvent("Registered Bluetooth BroadcastReceiver")
     }
 
+    private fun scheduleTenSecondCallbackCheck(profileId: Int) {
+        pendingTimeoutRunnables.remove(profileId)?.let { mainHandler.removeCallbacks(it) }
+        val runnable = Runnable {
+            pendingTimeoutRunnables.remove(profileId)
+            if (proxyCallbackFired[profileId] != true) {
+                val ts = nowTime()
+                proxyCallbackStatus[profileId] = "NO CALLBACK after 10s (at $ts)"
+                logEvent("[Diag #3] Profile $profileId: getProfileProxy=(${proxyRequestStatus[profileId] ?: "not called"}) -> NO CALLBACK after 10s (at $ts)")
+                onHardwareStateChanged()
+            }
+        }
+        pendingTimeoutRunnables[profileId] = runnable
+        mainHandler.postDelayed(runnable, 10_000L)
+    }
+
     fun bindAllProfileProxies() {
         val adapter = bluetoothAdapter
         if (adapter == null) {
+            val ts = nowTime()
             logEvent("bindAllProfileProxies: BluetoothAdapter is NULL (Web Preview / Emulator without BT hardware)")
+            for (profileId in LarkBtProfiles.ALL_MANAGED_PROFILES) {
+                proxyCallbackFired.putIfAbsent(profileId, false)
+                proxyRequestStatus[profileId] = "NOT_CALLED (BluetoothAdapter is NULL at $ts)"
+                if (!proxyCallbackStatus.containsKey(profileId)) {
+                    proxyCallbackStatus[profileId] = "waiting 10s (started at $ts)..."
+                }
+                scheduleTenSecondCallbackCheck(profileId)
+            }
             return
         }
         if (!hasBluetoothConnectPermission()) {
+            val ts = nowTime()
             logEvent("bindAllProfileProxies: BLUETOOTH_CONNECT permission not granted yet")
+            for (profileId in LarkBtProfiles.ALL_MANAGED_PROFILES) {
+                proxyCallbackFired.putIfAbsent(profileId, false)
+                proxyRequestStatus[profileId] = "SKIPPED (BLUETOOTH_CONNECT denied at $ts)"
+                if (!proxyCallbackStatus.containsKey(profileId)) {
+                    proxyCallbackStatus[profileId] = "waiting 10s (started at $ts)..."
+                }
+                scheduleTenSecondCallbackCheck(profileId)
+            }
             return
         }
 
         for (profileId in LarkBtProfiles.ALL_MANAGED_PROFILES) {
             if (!profileProxies.containsKey(profileId)) {
+                val ts = nowTime()
+                proxyCallbackFired[profileId] = false
                 try {
                     val requested = adapter.getProfileProxy(context, profileServiceListener, profileId)
-                    logEvent("getProfileProxy(profile=$profileId) -> requested=$requested")
+                    proxyRequestStatus[profileId] = "returned $requested at $ts"
+                    proxyCallbackStatus[profileId] = "waiting for callback (10s timer started at $ts)..."
+                    logEvent("getProfileProxy(profile=$profileId) -> requested=$requested (at $ts)")
+                    scheduleTenSecondCallbackCheck(profileId)
                 } catch (e: Throwable) {
+                    proxyRequestStatus[profileId] = "EXCEPTION(${e.javaClass.simpleName}: ${e.message}) at $ts"
+                    proxyCallbackStatus[profileId] = "waiting for callback (10s timer started at $ts)..."
                     logEvent("getProfileProxy(profile=$profileId) -> exception=${e.javaClass.simpleName}: ${e.message}")
+                    scheduleTenSecondCallbackCheck(profileId)
                 }
             }
         }
@@ -465,5 +532,195 @@ class LarkHardwareManager(
         return runCatching {
             device.name?.takeIf { it.isNotBlank() } ?: "סמארטפון מותאם"
         }.getOrDefault("סמארטפון מותאם")
+    }
+
+    /**
+     * Builds the read-only 6-point Bluetooth stack diagnostics snapshot with real values or real exceptions.
+     */
+    fun buildBluetoothStackDiagnosticsSnapshot(): List<String> {
+        val lines = mutableListOf<String>()
+
+        // 1. Device identity + ro.build.version.sdk via reflection on android.os.SystemProperties
+        val roBuildVersionSdk = try {
+            val spClass = Class.forName("android.os.SystemProperties")
+            val getMethod = spClass.getMethod("get", String::class.java)
+            val value = getMethod.invoke(null, "ro.build.version.sdk") as? String
+            value ?: "null"
+        } catch (e: Throwable) {
+            "EXCEPTION(${e.javaClass.simpleName}: ${e.message})"
+        }
+        lines.add(
+            "[1. Device Identity] MANUFACTURER=${Build.MANUFACTURER} | MODEL=${Build.MODEL} | DEVICE=${Build.DEVICE} | HARDWARE=${Build.HARDWARE} | BOARD=${Build.BOARD}"
+        )
+        lines.add(
+            "[1. Device Identity] VERSION.RELEASE=${Build.VERSION.RELEASE} | VERSION.SDK_INT=${Build.VERSION.SDK_INT} vs SystemProperties(ro.build.version.sdk)=$roBuildVersionSdk | FINGERPRINT=${Build.FINGERPRINT}"
+        )
+
+        // 2. BluetoothAdapter.getDefaultAdapter(): null or not, isEnabled, state, name
+        @Suppress("DEPRECATION")
+        val defaultAdapterResult = try {
+            val adapter = BluetoothAdapter.getDefaultAdapter()
+            if (adapter == null) {
+                "defaultAdapter=NULL | isEnabled=N/A | state=N/A | name=N/A"
+            } else {
+                val isEnabledStr = try {
+                    adapter.isEnabled.toString()
+                } catch (e: Throwable) {
+                    "EXCEPTION(${e.javaClass.simpleName}: ${e.message})"
+                }
+                val stateStr = try {
+                    adapter.state.toString()
+                } catch (e: Throwable) {
+                    "EXCEPTION(${e.javaClass.simpleName}: ${e.message})"
+                }
+                val nameStr = try {
+                    adapter.name ?: "null"
+                } catch (e: Throwable) {
+                    "EXCEPTION(${e.javaClass.simpleName}: ${e.message})"
+                }
+                "defaultAdapter=NOT_NULL | isEnabled=$isEnabledStr | state=$stateStr | name=\"$nameStr\""
+            }
+        } catch (e: Throwable) {
+            "EXCEPTION(${e.javaClass.simpleName}: ${e.message})"
+        }
+        lines.add("[2. BluetoothAdapter.getDefaultAdapter()] $defaultAdapterResult")
+
+        // 3. Profiles 1, 2, 11, 12, 16, 17: getProfileProxy result + callback within 10s (or NO CALLBACK after 10s)
+        for (profileId in LarkBtProfiles.ALL_MANAGED_PROFILES) {
+            val req = proxyRequestStatus[profileId] ?: "not called yet"
+            val cb = proxyCallbackStatus[profileId] ?: "no callback yet"
+            lines.add("[3. Profile $profileId] getProfileProxy=($req) | callback=($cb)")
+        }
+
+        // 4. PackageManager: installed packages containing bluetooth, bt, blue, lark, asr, zlink, syu
+        val keywords = listOf("bluetooth", "bt", "blue", "lark", "asr", "zlink", "syu")
+        try {
+            val pm = context.packageManager
+            @Suppress("DEPRECATION")
+            val installed = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                pm.getInstalledPackages(PackageManager.PackageInfoFlags.of(0L))
+            } else {
+                pm.getInstalledPackages(0)
+            }
+            val matched = installed.filter { pkgInfo ->
+                val lowerName = pkgInfo.packageName.lowercase(Locale.US)
+                keywords.any { kw -> lowerName.contains(kw) }
+            }.sortedBy { it.packageName }
+
+            if (matched.isEmpty()) {
+                lines.add("[4. PackageManager] 0 matching packages found (scanned ${installed.size} visible packages)")
+            } else {
+                lines.add("[4. PackageManager] Found ${matched.size} matching packages (scanned ${installed.size} visible packages):")
+                for (pkgInfo in matched) {
+                    val flags = pkgInfo.applicationInfo?.flags ?: 0
+                    val isSystem = (flags and ApplicationInfo.FLAG_SYSTEM) != 0
+                    val isUpdatedSystem = (flags and ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0
+                    val verName = pkgInfo.versionName ?: "null"
+                    lines.add(
+                        "[4. PackageManager] package=${pkgInfo.packageName} | versionName=$verName | isSystemApp=$isSystem (updatedSystem=$isUpdatedSystem, flags=0x${Integer.toHexString(flags)})"
+                    )
+                }
+            }
+        } catch (e: Throwable) {
+            lines.add("[4. PackageManager] EXCEPTION(${e.javaClass.simpleName}: ${e.message})")
+        }
+
+        // 5. adapter.getBondedDevices(): name, address, device type
+        @Suppress("DEPRECATION")
+        val adapterForBonded = try {
+            BluetoothAdapter.getDefaultAdapter() ?: bluetoothAdapter
+        } catch (_: Throwable) {
+            bluetoothAdapter
+        }
+        if (adapterForBonded == null) {
+            lines.add("[5. adapter.getBondedDevices()] adapter=NULL")
+        } else {
+            try {
+                val bonded = adapterForBonded.bondedDevices
+                if (bonded == null) {
+                    lines.add("[5. adapter.getBondedDevices()] returned NULL")
+                } else if (bonded.isEmpty()) {
+                    lines.add("[5. adapter.getBondedDevices()] returned EMPTY set (0 devices)")
+                } else {
+                    lines.add("[5. adapter.getBondedDevices()] count=${bonded.size}:")
+                    for (device in bonded) {
+                        val devName = try {
+                            device.name ?: "null"
+                        } catch (e: Throwable) {
+                            "EXCEPTION(${e.javaClass.simpleName}: ${e.message})"
+                        }
+                        val devAddress = try {
+                            device.address ?: "null"
+                        } catch (e: Throwable) {
+                            "EXCEPTION(${e.javaClass.simpleName}: ${e.message})"
+                        }
+                        val devType = try {
+                            when (val t = device.type) {
+                                BluetoothDevice.DEVICE_TYPE_CLASSIC -> "DEVICE_TYPE_CLASSIC(1)"
+                                BluetoothDevice.DEVICE_TYPE_LE -> "DEVICE_TYPE_LE(2)"
+                                BluetoothDevice.DEVICE_TYPE_DUAL -> "DEVICE_TYPE_DUAL(3)"
+                                BluetoothDevice.DEVICE_TYPE_UNKNOWN -> "DEVICE_TYPE_UNKNOWN(0)"
+                                else -> "TYPE($t)"
+                            }
+                        } catch (e: Throwable) {
+                            "EXCEPTION(${e.javaClass.simpleName}: ${e.message})"
+                        }
+                        lines.add("[5. adapter.getBondedDevices()] name=\"$devName\" | address=$devAddress | deviceType=$devType")
+                    }
+                }
+            } catch (e: Throwable) {
+                lines.add("[5. adapter.getBondedDevices()] EXCEPTION(${e.javaClass.simpleName}: ${e.message})")
+            }
+        }
+
+        // 6. Whether this app runs as a system app (ApplicationInfo.flags & FLAG_SYSTEM) and runtime permissions granted
+        try {
+            val appInfo = context.applicationInfo
+            val flags = appInfo.flags
+            val isSystemApp = (flags and ApplicationInfo.FLAG_SYSTEM) != 0
+            val isUpdatedSystemApp = (flags and ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0
+            lines.add(
+                "[6. App System Flag] package=${context.packageName} | (ApplicationInfo.flags & FLAG_SYSTEM)!=0 -> isSystemApp=$isSystemApp | isUpdatedSystemApp=$isUpdatedSystemApp | flags=0x${Integer.toHexString(flags)}"
+            )
+        } catch (e: Throwable) {
+            lines.add("[6. App System Flag] EXCEPTION(${e.javaClass.simpleName}: ${e.message})")
+        }
+
+        try {
+            val permsToCheck = listOf(
+                android.Manifest.permission.BLUETOOTH,
+                android.Manifest.permission.BLUETOOTH_ADMIN,
+                android.Manifest.permission.BLUETOOTH_CONNECT,
+                android.Manifest.permission.BLUETOOTH_SCAN,
+                android.Manifest.permission.KILL_BACKGROUND_PROCESSES,
+                android.Manifest.permission.ACCESS_FINE_LOCATION,
+                android.Manifest.permission.ACCESS_COARSE_LOCATION
+            )
+            val permReport = permsToCheck.joinToString(" | ") { perm ->
+                val status = try {
+                    if (ContextCompat.checkSelfPermission(context, perm) == PackageManager.PERMISSION_GRANTED) {
+                        "GRANTED"
+                    } else {
+                        "DENIED"
+                    }
+                } catch (e: Throwable) {
+                    "EXCEPTION(${e.javaClass.simpleName})"
+                }
+                "${perm.substringAfterLast('.')}=$status"
+            }
+            lines.add("[6. Granted Permissions] $permReport")
+        } catch (e: Throwable) {
+            lines.add("[6. Granted Permissions] EXCEPTION(${e.javaClass.simpleName}: ${e.message})")
+        }
+
+        return lines
+    }
+
+    fun logBluetoothStackDiagnostics(trigger: String) {
+        logEvent("--- BEGIN Bluetooth stack diagnostics ($trigger) ---")
+        buildBluetoothStackDiagnosticsSnapshot().forEach { line ->
+            logEvent(line)
+        }
+        logEvent("--- END Bluetooth stack diagnostics ($trigger) ---")
     }
 }

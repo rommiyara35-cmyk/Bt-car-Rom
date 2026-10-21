@@ -71,6 +71,7 @@ import com.example.ui.theme.OledBlack
 fun ExportProjectModalDialog(
     isOpen: Boolean,
     diagnosticLogs: List<String> = emptyList(),
+    bluetoothStackDiagnostics: List<String> = emptyList(),
     onDismiss: () -> Unit
 ) {
     if (!isOpen) return
@@ -81,19 +82,35 @@ fun ExportProjectModalDialog(
     var showDiagnosticLogTab by remember { mutableStateOf(false) }
 
     val selectedFile = files.firstOrNull { it.id == selectedFileId } ?: files.first()
+    val stackDiagnosticsText = if (bluetoothStackDiagnostics.isEmpty()) {
+        "Collecting Bluetooth stack diagnostics..."
+    } else {
+        bluetoothStackDiagnostics.joinToString("\n")
+    }
+    val liveLogText = if (diagnosticLogs.isEmpty()) {
+        "No diagnostic events recorded yet."
+    } else {
+        diagnosticLogs.joinToString("\n")
+    }
     val displayedContent = if (showDiagnosticLogTab) {
-        if (diagnosticLogs.isEmpty()) "No diagnostic events recorded yet."
-        else diagnosticLogs.joinToString("\n")
+        buildString {
+            appendLine("=== Bluetooth stack diagnostics (READ-ONLY) ===")
+            appendLine(stackDiagnosticsText)
+            appendLine("===============================================")
+            appendLine()
+            appendLine("=== Live Diagnostic Log (${diagnosticLogs.size} / 1000 entries) ===")
+            append(liveLogText)
+        }
     } else {
         selectedFile.content
     }
     val displayedTitle = if (showDiagnosticLogTab) {
-        "Live Diagnostic Log (${diagnosticLogs.size} entries)"
+        "Live Diagnostic Log (${diagnosticLogs.size} / 1000 entries)"
     } else {
         selectedFile.title
     }
     val displayedSubtitle = if (showDiagnosticLogTab) {
-        "Records every Java Reflection call, profile connection poll (250ms x 3500ms), and adapter reset result."
+        "Includes READ-ONLY Bluetooth stack diagnostics + every Java Reflection call, 10s proxy callback check, and connection poll."
     } else {
         "${selectedFile.description} • ${selectedFile.content.lines().size} lines"
     }
@@ -352,15 +369,70 @@ fun ExportProjectModalDialog(
                                     .background(Color(0xFF0A0A0C))
                                     .padding(12.dp)
                             ) {
-                                Text(
-                                    text = displayedContent,
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = Color(0xFFE5F0FF),
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .verticalScroll(vScroll)
-                                        .horizontalScroll(hScroll)
-                                )
+                                if (showDiagnosticLogTab) {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .verticalScroll(vScroll)
+                                            .horizontalScroll(hScroll),
+                                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                                    ) {
+                                        // READ-ONLY Bluetooth stack diagnostics section
+                                        Column(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clip(RoundedCornerShape(10.dp))
+                                                .background(AppleCardElevated)
+                                                .border(1.dp, AppleGreen.copy(alpha = 0.5f), RoundedCornerShape(10.dp))
+                                                .padding(12.dp)
+                                                .testTag("bluetooth_stack_diagnostics_section")
+                                        ) {
+                                            Text(
+                                                text = "Bluetooth stack diagnostics (READ-ONLY)",
+                                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                                color = AppleGreen
+                                            )
+                                            Spacer(modifier = Modifier.height(6.dp))
+                                            Text(
+                                                text = stackDiagnosticsText,
+                                                style = MaterialTheme.typography.labelMedium,
+                                                color = Color(0xFFE5F0FF)
+                                            )
+                                        }
+
+                                        // Live Diagnostic Event Trace section
+                                        Column(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clip(RoundedCornerShape(10.dp))
+                                                .background(Color(0xFF0D0D10))
+                                                .border(1.dp, AppleCardBorder, RoundedCornerShape(10.dp))
+                                                .padding(12.dp)
+                                        ) {
+                                            Text(
+                                                text = "Live Event Trace (${diagnosticLogs.size} / 1000 max)",
+                                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                                color = AppleBlue
+                                            )
+                                            Spacer(modifier = Modifier.height(6.dp))
+                                            Text(
+                                                text = liveLogText,
+                                                style = MaterialTheme.typography.labelMedium,
+                                                color = Color(0xFFE5F0FF)
+                                            )
+                                        }
+                                    }
+                                } else {
+                                    Text(
+                                        text = displayedContent,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = Color(0xFFE5F0FF),
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .verticalScroll(vScroll)
+                                            .horizontalScroll(hScroll)
+                                    )
+                                }
                             }
                         }
                     }
