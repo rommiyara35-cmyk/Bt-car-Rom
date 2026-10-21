@@ -2,7 +2,7 @@ name: Build LarkBT Switcher APK (ASR8601 lark_evb)
 
 on:
   push:
-    branches: [ "main", "master" ]
+    branches: [ "main", "master", "fix/workflow-build-apk" ]
   pull_request:
     branches: [ "main", "master" ]
   workflow_dispatch:
@@ -22,6 +22,8 @@ jobs:
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '9.3.1'
 
       - name: Generate Debug Keystore if missing
         run: |
@@ -30,7 +32,7 @@ jobs:
           fi
 
       - name: Build Debug APK for lark_evb Head Unit
-        run: ./gradlew assembleDebug --stacktrace
+        run: gradle assembleDebug --stacktrace
 
       - name: Upload Ready-to-Install Car Head Unit APK
         uses: actions/upload-artifact@v4
