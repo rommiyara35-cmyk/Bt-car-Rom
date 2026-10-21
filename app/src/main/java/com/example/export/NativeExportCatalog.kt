@@ -173,7 +173,7 @@ fun AppleBluetoothSwitcherScreen(
             onDismiss = viewModel::closeExportModal
         )
     }
-}""",
+}"""
         ),
         ExportableProjectFile(
             id = "lark_models",
@@ -254,7 +254,7 @@ sealed class SmartSwitchModalState {
         val isComplete: Boolean = false,
         val isFailed: Boolean = false
     ) : SmartSwitchModalState()
-}""",
+}"""
         ),
         ExportableProjectFile(
             id = "hardware_manager",
@@ -271,14 +271,18 @@ import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothProfile
 import android.content.BroadcastReceiver
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.ServiceConnection
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Handler
+import android.os.IBinder
 import android.os.Looper
+import android.provider.Settings
 import android.util.Log
 import androidx.core.content.ContextCompat
 import com.example.model.FactoryBtPackages
@@ -289,6 +293,8 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
+import org.xmlpull.v1.XmlPullParser
 
 /**
  * Hidden Underlying Native Android Engine for ASR lark_evb (arm64-v8a).
@@ -322,6 +328,8 @@ class LarkHardwareManager(
     private val proxyCallbackStatus = ConcurrentHashMap<Int, String>()
     private val proxyCallbackFired = ConcurrentHashMap<Int, Boolean>()
     private val pendingTimeoutRunnables = ConcurrentHashMap<Int, Runnable>()
+    private val serviceBindProbeStatus = ConcurrentHashMap<String, String>()
+    private val pendingBindTimeoutRunnables = ConcurrentHashMap<String, Runnable>()
 
     private fun nowTime(): String = diagTimeFormat.format(Date())
 
@@ -420,6 +428,8 @@ class LarkHardwareManager(
     fun release() {
         pendingTimeoutRunnables.values.forEach { mainHandler.removeCallbacks(it) }
         pendingTimeoutRunnables.clear()
+        pendingBindTimeoutRunnables.values.forEach { mainHandler.removeCallbacks(it) }
+        pendingBindTimeoutRunnables.clear()
         if (receiverRegistered) {
             runCatching { context.unregisterReceiver(bluetoothReceiver) }
             receiverRegistered = false
@@ -977,17 +987,555 @@ class LarkHardwareManager(
             lines.add("[6. Granted Permissions] EXCEPTION(${'$'}{e.javaClass.simpleName}: ${'$'}{e.message})")
         }
 
+        // 7. Vendor Bluetooth packages
+        val vendorBtPackages = listOf(
+            "com.android.bluetooth",
+            "com.bt.bc03",
+            "com.zjinnova.zlink",
+            "com.asrmicro.boltboost",
+            "vendor.asr.wcn"
+        )
+        val discoveredManifestBtActions = linkedSetOf<String>()
+        val pm = context.packageManager
+
+        lines.add("[7. Vendor Bluetooth packages] --- Target packages: ${'$'}{vendorBtPackages.joinToString(", ")} ---")
+        for (pkg in vendorBtPackages) {
+            try {
+                @Suppress("DEPRECATION")
+                val compFlags = PackageManager.GET_SERVICES or
+                    PackageManager.GET_RECEIVERS or
+                    PackageManager.GET_ACTIVITIES or
+                    PackageManager.GET_PROVIDERS
+                @Suppress("DEPRECATION")
+                val pkgInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    pm.getPackageInfo(pkg, PackageManager.PackageInfoFlags.of(compFlags.toLong()))
+                } else {
+                    pm.getPackageInfo(pkg, compFlags)
+                }
+
+                val appEnabledSetting = try {
+                    pm.getApplicationEnabledSetting(pkg).toString()
+                } catch (e: Throwable) {
+                    "EXCEPTION(${'$'}{e.javaClass.name}: ${'$'}{e.message})"
+                }
+                val appInfoEnabled = try {
+                    pkgInfo.applicationInfo?.enabled?.toString() ?: "null"
+                } catch (e: Throwable) {
+                    "EXCEPTION(${'$'}{e.javaClass.name}: ${'$'}{e.message})"
+                }
+                lines.add(
+                    "[7. Vendor Bluetooth packages] pkg=${'$'}pkg | getApplicationEnabledSetting=${'$'}appEnabledSetting | ApplicationInfo.enabled=${'$'}appInfoEnabled | versionName=${'$'}{pkgInfo.versionName ?: "null"}"
+                )
+
+                val services = pkgInfo.services.orEmpty()
+                lines.add("[7. Vendor Bluetooth packages] pkg=${'$'}pkg | services count=${'$'}{services.size}")
+                for (svc in services) {
+                    val compEnabled = try {
+                        pm.getComponentEnabledSetting(ComponentName(pkg, svc.name)).toString()
+                    } catch (e: Throwable) {
+                        "EXCEPTION(${'$'}{e.javaClass.name}: ${'$'}{e.message})"
+                    }
+                    lines.add(
+                        "[7. Vendor Bluetooth packages] pkg=${'$'}pkg | SERVICE class=${'$'}{svc.name} | exported=${'$'}{svc.exported} | getComponentEnabledSetting=${'$'}compEnabled (info.enabled=${'$'}{svc.enabled}) | permission=${'$'}{svc.permission ?: "none"}"
+                    )
+                }
+
+                val receivers = pkgInfo.receivers.orEmpty()
+                lines.add("[7. Vendor Bluetooth packages] pkg=${'$'}pkg | receivers count=${'$'}{receivers.size}")
+                for (rcv in receivers) {
+                    val compEnabled = try {
+                        pm.getComponentEnabledSetting(ComponentName(pkg, rcv.name)).toString()
+                    } catch (e: Throwable) {
+                        "EXCEPTION(${'$'}{e.javaClass.name}: ${'$'}{e.message})"
+                    }
+                    lines.add(
+                        "[7. Vendor Bluetooth packages] pkg=${'$'}pkg | RECEIVER class=${'$'}{rcv.name} | exported=${'$'}{rcv.exported} | getComponentEnabledSetting=${'$'}compEnabled (info.enabled=${'$'}{rcv.enabled}) | permission=${'$'}{rcv.permission ?: "none"}"
+                    )
+                }
+
+                val activities = pkgInfo.activities.orEmpty()
+                lines.add("[7. Vendor Bluetooth packages] pkg=${'$'}pkg | activities count=${'$'}{activities.size}")
+                for (act in activities) {
+                    val compEnabled = try {
+                        pm.getComponentEnabledSetting(ComponentName(pkg, act.name)).toString()
+                    } catch (e: Throwable) {
+                        "EXCEPTION(${'$'}{e.javaClass.name}: ${'$'}{e.message})"
+                    }
+                    lines.add(
+                        "[7. Vendor Bluetooth packages] pkg=${'$'}pkg | ACTIVITY class=${'$'}{act.name} | exported=${'$'}{act.exported} | getComponentEnabledSetting=${'$'}compEnabled (info.enabled=${'$'}{act.enabled}) | permission=${'$'}{act.permission ?: "none"}"
+                    )
+                }
+
+                val providers = pkgInfo.providers.orEmpty()
+                lines.add("[7. Vendor Bluetooth packages] pkg=${'$'}pkg | providers count=${'$'}{providers.size}")
+                for (prv in providers) {
+                    val compEnabled = try {
+                        pm.getComponentEnabledSetting(ComponentName(pkg, prv.name)).toString()
+                    } catch (e: Throwable) {
+                        "EXCEPTION(${'$'}{e.javaClass.name}: ${'$'}{e.message})"
+                    }
+                    val permStr = listOfNotNull(
+                        prv.readPermission?.let { "readPermission=${'$'}it" },
+                        prv.writePermission?.let { "writePermission=${'$'}it" }
+                    ).joinToString(", ").ifEmpty { "none" }
+                    lines.add(
+                        "[7. Vendor Bluetooth packages] pkg=${'$'}pkg | PROVIDER class=${'$'}{prv.name} | exported=${'$'}{prv.exported} | getComponentEnabledSetting=${'$'}compEnabled (info.enabled=${'$'}{prv.enabled}) | permission=${'$'}permStr"
+                    )
+                }
+
+                // 7.3 requestedPermissions
+                try {
+                    @Suppress("DEPRECATION")
+                    val permPkgInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        pm.getPackageInfo(pkg, PackageManager.PackageInfoFlags.of(PackageManager.GET_PERMISSIONS.toLong()))
+                    } else {
+                        pm.getPackageInfo(pkg, PackageManager.GET_PERMISSIONS)
+                    }
+                    val reqPerms = permPkgInfo.requestedPermissions
+                    lines.add(
+                        "[7. Vendor Bluetooth packages] pkg=${'$'}pkg | requestedPermissions=${'$'}{reqPerms?.joinToString(", ") ?: "none"}"
+                    )
+                } catch (e: Throwable) {
+                    lines.add(
+                        "[7. Vendor Bluetooth packages] pkg=${'$'}pkg | requestedPermissions -> EXCEPTION(${'$'}{e.javaClass.name}: ${'$'}{e.message})"
+                    )
+                }
+
+                // Parse manifest <action> tags containing "bluetooth" or "bt" for section 8.1
+                try {
+                    val pkgCtx = context.createPackageContext(pkg, 0)
+                    val parser = pkgCtx.assets.openXmlResourceParser("AndroidManifest.xml")
+                    val pkgActions = linkedSetOf<String>()
+                    try {
+                        var eventType = parser.eventType
+                        while (eventType != XmlPullParser.END_DOCUMENT) {
+                            if (eventType == XmlPullParser.START_TAG && parser.name == "action") {
+                                val actionName = parser.getAttributeValue(
+                                    "http://schemas.android.com/apk/res/android",
+                                    "name"
+                                ) ?: parser.getAttributeValue(null, "name")
+                                if (!actionName.isNullOrBlank()) {
+                                    val lower = actionName.lowercase(Locale.US)
+                                    if (lower.contains("bluetooth") || lower.contains("bt")) {
+                                        pkgActions.add(actionName)
+                                        discoveredManifestBtActions.add(actionName)
+                                    }
+                                }
+                            }
+                            eventType = parser.next()
+                        }
+                    } finally {
+                        runCatching { parser.close() }
+                    }
+                    lines.add(
+                        "[7. Vendor Bluetooth packages] pkg=${'$'}pkg | manifest <action> containing bluetooth/bt=${'$'}{if (pkgActions.isEmpty()) "NONE" else pkgActions.joinToString(", ")}"
+                    )
+                } catch (e: Throwable) {
+                    lines.add(
+                        "[7. Vendor Bluetooth packages] pkg=${'$'}pkg | manifest <action> scan -> EXCEPTION(${'$'}{e.javaClass.name}: ${'$'}{e.message})"
+                    )
+                }
+            } catch (e: Throwable) {
+                lines.add(
+                    "[7. Vendor Bluetooth packages] pkg=${'$'}pkg -> EXCEPTION(${'$'}{e.javaClass.name}: ${'$'}{e.message})"
+                )
+            }
+        }
+
+        // 8. Bluetooth binding
+        lines.add("[8. Bluetooth binding] --- queryIntentServices, bindService, Settings & SystemProperties ---")
+        val actionsToQuery = linkedSetOf("android.bluetooth.IBluetooth").apply {
+            addAll(discoveredManifestBtActions)
+        }
+        for (actionStr in actionsToQuery) {
+            try {
+                @Suppress("DEPRECATION")
+                val resolved = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    pm.queryIntentServices(Intent(actionStr), PackageManager.ResolveInfoFlags.of(0L))
+                } else {
+                    pm.queryIntentServices(Intent(actionStr), 0)
+                }
+                if (resolved.isEmpty()) {
+                    lines.add("[8. Bluetooth binding] queryIntentServices(Intent(\"${'$'}actionStr\")) -> NONE")
+                } else {
+                    val resolvedSummary = resolved.joinToString(", ") { ri ->
+                        "${'$'}{ri.serviceInfo?.packageName}/${'$'}{ri.serviceInfo?.name}"
+                    }
+                    lines.add(
+                        "[8. Bluetooth binding] queryIntentServices(Intent(\"${'$'}actionStr\")) -> ${'$'}resolvedSummary"
+                    )
+                }
+            } catch (e: Throwable) {
+                lines.add(
+                    "[8. Bluetooth binding] queryIntentServices(Intent(\"${'$'}actionStr\")) -> EXCEPTION(${'$'}{e.javaClass.name}: ${'$'}{e.message})"
+                )
+            }
+        }
+
+        if (serviceBindProbeStatus.isEmpty()) {
+            lines.add("[8. Bluetooth binding] bindService probes -> NONE (no resolved services to bind)")
+        } else {
+            for ((probeKey, status) in serviceBindProbeStatus.toSortedMap()) {
+                lines.add("[8. Bluetooth binding] bindService(${'$'}probeKey) -> ${'$'}status")
+            }
+        }
+
+        // 8.3 Settings.Global "bluetooth_on" and any global/secure setting whose name contains "bluetooth"
+        val btOnVal = try {
+            Settings.Global.getString(context.contentResolver, "bluetooth_on") ?: "null"
+        } catch (e: Throwable) {
+            "EXCEPTION(${'$'}{e.javaClass.name}: ${'$'}{e.message})"
+        }
+        lines.add("[8. Bluetooth binding] Settings.Global.getString(\"bluetooth_on\")=${'$'}btOnVal")
+
+        val globalBtKeys = linkedSetOf<String>()
+        try {
+            context.contentResolver.query(
+                Settings.Global.CONTENT_URI,
+                arrayOf("name"),
+                null,
+                null,
+                null
+            )?.use { cursor ->
+                val nameIdx = cursor.getColumnIndex("name")
+                while (cursor.moveToNext()) {
+                    if (nameIdx >= 0) {
+                        val key = cursor.getString(nameIdx)
+                        if (!key.isNullOrBlank() && key.lowercase(Locale.US).contains("bluetooth")) {
+                            globalBtKeys.add(key)
+                        }
+                    }
+                }
+            }
+        } catch (e: Throwable) {
+            lines.add(
+                "[8. Bluetooth binding] Settings.Global cursor scan -> EXCEPTION(${'$'}{e.javaClass.name}: ${'$'}{e.message})"
+            )
+        }
+        try {
+            for (field in Settings.Global::class.java.fields) {
+                if (field.type == String::class.java) {
+                    val key = runCatching { field.get(null) as? String }.getOrNull()
+                    if (!key.isNullOrBlank() && key.lowercase(Locale.US).contains("bluetooth")) {
+                        globalBtKeys.add(key)
+                    }
+                }
+            }
+        } catch (e: Throwable) {
+            lines.add(
+                "[8. Bluetooth binding] Settings.Global fields scan -> EXCEPTION(${'$'}{e.javaClass.name}: ${'$'}{e.message})"
+            )
+        }
+        for (key in globalBtKeys.sorted()) {
+            if (key == "bluetooth_on") continue
+            try {
+                val v = Settings.Global.getString(context.contentResolver, key)
+                if (v != null) {
+                    lines.add("[8. Bluetooth binding] Settings.Global.getString(\"${'$'}key\")=${'$'}v")
+                }
+            } catch (e: Throwable) {
+                lines.add(
+                    "[8. Bluetooth binding] Settings.Global.getString(\"${'$'}key\") -> EXCEPTION(${'$'}{e.javaClass.name}: ${'$'}{e.message})"
+                )
+            }
+        }
+
+        val secureBtKeys = linkedSetOf<String>()
+        try {
+            context.contentResolver.query(
+                Settings.Secure.CONTENT_URI,
+                arrayOf("name"),
+                null,
+                null,
+                null
+            )?.use { cursor ->
+                val nameIdx = cursor.getColumnIndex("name")
+                while (cursor.moveToNext()) {
+                    if (nameIdx >= 0) {
+                        val key = cursor.getString(nameIdx)
+                        if (!key.isNullOrBlank() && key.lowercase(Locale.US).contains("bluetooth")) {
+                            secureBtKeys.add(key)
+                        }
+                    }
+                }
+            }
+        } catch (e: Throwable) {
+            lines.add(
+                "[8. Bluetooth binding] Settings.Secure cursor scan -> EXCEPTION(${'$'}{e.javaClass.name}: ${'$'}{e.message})"
+            )
+        }
+        try {
+            for (field in Settings.Secure::class.java.fields) {
+                if (field.type == String::class.java) {
+                    val key = runCatching { field.get(null) as? String }.getOrNull()
+                    if (!key.isNullOrBlank() && key.lowercase(Locale.US).contains("bluetooth")) {
+                        secureBtKeys.add(key)
+                    }
+                }
+            }
+        } catch (e: Throwable) {
+            lines.add(
+                "[8. Bluetooth binding] Settings.Secure fields scan -> EXCEPTION(${'$'}{e.javaClass.name}: ${'$'}{e.message})"
+            )
+        }
+        for (key in secureBtKeys.sorted()) {
+            val globalRead = try {
+                Settings.Global.getString(context.contentResolver, key)
+            } catch (e: Throwable) {
+                "EXCEPTION(${'$'}{e.javaClass.name}: ${'$'}{e.message})"
+            }
+            val secureRead = try {
+                Settings.Secure.getString(context.contentResolver, key)
+            } catch (e: Throwable) {
+                "EXCEPTION(${'$'}{e.javaClass.name}: ${'$'}{e.message})"
+            }
+            if (globalRead != null || secureRead != null) {
+                lines.add(
+                    "[8. Bluetooth binding] Secure/Global setting \"${'$'}key\" -> Global.getString=${'$'}{globalRead ?: "null"} | Secure.getString=${'$'}{secureRead ?: "null"}"
+                )
+            }
+        }
+
+        // 8.4 SystemProperties reflection for ro.build.display.id, ro.product.name, ro.product.brand, ro.board.platform, ro.bluetooth.*
+        val fixedPropKeys = listOf(
+            "ro.build.display.id",
+            "ro.product.name",
+            "ro.product.brand",
+            "ro.board.platform"
+        )
+        try {
+            val spClass = Class.forName("android.os.SystemProperties")
+            val getMethod = spClass.getMethod("get", String::class.java)
+            for (propKey in fixedPropKeys) {
+                try {
+                    val propVal = getMethod.invoke(null, propKey) as? String
+                    if (!propVal.isNullOrEmpty()) {
+                        lines.add("[8. Bluetooth binding] SystemProperties.get(\"${'$'}propKey\")=${'$'}propVal")
+                    } else {
+                        lines.add("[8. Bluetooth binding] SystemProperties.get(\"${'$'}propKey\")=<empty>")
+                    }
+                } catch (e: Throwable) {
+                    lines.add(
+                        "[8. Bluetooth binding] SystemProperties.get(\"${'$'}propKey\") -> EXCEPTION(${'$'}{e.javaClass.name}: ${'$'}{e.message})"
+                    )
+                }
+            }
+
+            // Discover real ro.bluetooth.* keys from getprop without guessing keys
+            val discoveredRoBtKeys = linkedSetOf<String>()
+            try {
+                val proc = ProcessBuilder("getprop").redirectErrorStream(true).start()
+                val propRegex = Regex("^\\[(ro\\.bluetooth\\.[^\\]]+)\\]:\\s*\\[(.*)\\]${'$'}")
+                proc.inputStream.bufferedReader().useLines { seq ->
+                    seq.forEach { rawLine ->
+                        val match = propRegex.find(rawLine.trim())
+                        if (match != null) {
+                            discoveredRoBtKeys.add(match.groupValues[1])
+                        }
+                    }
+                }
+                proc.waitFor()
+            } catch (e: Throwable) {
+                lines.add(
+                    "[8. Bluetooth binding] getprop ro.bluetooth.* enumeration -> EXCEPTION(${'$'}{e.javaClass.name}: ${'$'}{e.message})"
+                )
+            }
+
+            var loggedRoBtCount = 0
+            for (btPropKey in discoveredRoBtKeys.sorted()) {
+                try {
+                    val propVal = getMethod.invoke(null, btPropKey) as? String
+                    if (!propVal.isNullOrEmpty()) {
+                        lines.add("[8. Bluetooth binding] SystemProperties.get(\"${'$'}btPropKey\")=${'$'}propVal")
+                        loggedRoBtCount++
+                    }
+                } catch (e: Throwable) {
+                    lines.add(
+                        "[8. Bluetooth binding] SystemProperties.get(\"${'$'}btPropKey\") -> EXCEPTION(${'$'}{e.javaClass.name}: ${'$'}{e.message})"
+                    )
+                    loggedRoBtCount++
+                }
+            }
+            if (loggedRoBtCount == 0) {
+                lines.add("[8. Bluetooth binding] SystemProperties ro.bluetooth.* -> NONE (0 keys returned a value)")
+            }
+        } catch (e: Throwable) {
+            lines.add(
+                "[8. Bluetooth binding] Class.forName(\"android.os.SystemProperties\") -> EXCEPTION(${'$'}{e.javaClass.name}: ${'$'}{e.message})"
+            )
+        }
+
         return lines
     }
 
+    /**
+     * Runs read-only bindService probes for the first resolved service of Intent("android.bluetooth.IBluetooth")
+     * and any manifest action containing "bluetooth" or "bt". Logs boolean result and whether
+     * onServiceConnected / onNullBinding / onBindingDied arrives within 10s, then unbinds immediately
+     * without calling any method on the binder.
+     */
+    private fun runReadOnlyBluetoothBindingProbes() {
+        val vendorBtPackages = listOf(
+            "com.android.bluetooth",
+            "com.bt.bc03",
+            "com.zjinnova.zlink",
+            "com.asrmicro.boltboost",
+            "vendor.asr.wcn"
+        )
+        val actionsToQuery = linkedSetOf("android.bluetooth.IBluetooth")
+        val pm = context.packageManager
+
+        for (pkg in vendorBtPackages) {
+            runCatching {
+                val pkgCtx = context.createPackageContext(pkg, 0)
+                val parser = pkgCtx.assets.openXmlResourceParser("AndroidManifest.xml")
+                try {
+                    var eventType = parser.eventType
+                    while (eventType != XmlPullParser.END_DOCUMENT) {
+                        if (eventType == XmlPullParser.START_TAG && parser.name == "action") {
+                            val actionName = parser.getAttributeValue(
+                                "http://schemas.android.com/apk/res/android",
+                                "name"
+                            ) ?: parser.getAttributeValue(null, "name")
+                            if (!actionName.isNullOrBlank()) {
+                                val lower = actionName.lowercase(Locale.US)
+                                if (lower.contains("bluetooth") || lower.contains("bt")) {
+                                    actionsToQuery.add(actionName)
+                                }
+                            }
+                        }
+                        eventType = parser.next()
+                    }
+                } finally {
+                    runCatching { parser.close() }
+                }
+            }
+        }
+
+        for (actionStr in actionsToQuery) {
+            try {
+                @Suppress("DEPRECATION")
+                val resolved = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    pm.queryIntentServices(Intent(actionStr), PackageManager.ResolveInfoFlags.of(0L))
+                } else {
+                    pm.queryIntentServices(Intent(actionStr), 0)
+                }
+                val firstSvc = resolved.firstOrNull()?.serviceInfo ?: continue
+                val probeKey = "${'$'}actionStr -> ${'$'}{firstSvc.packageName}/${'$'}{firstSvc.name}"
+                pendingBindTimeoutRunnables.remove(probeKey)?.let { mainHandler.removeCallbacks(it) }
+
+                val callbackReceived = AtomicBoolean(false)
+                var bindBoolResult = false
+                val bindStartTs = nowTime()
+
+                val conn = object : ServiceConnection {
+                    override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
+                        if (callbackReceived.compareAndSet(false, true)) {
+                            pendingBindTimeoutRunnables.remove(probeKey)?.let { mainHandler.removeCallbacks(it) }
+                            val ts = nowTime()
+                            val unbindMsg = try {
+                                context.unbindService(this)
+                                "unbindService=ok"
+                            } catch (e: Throwable) {
+                                "unbindService=EXCEPTION(${'$'}{e.javaClass.name}: ${'$'}{e.message})"
+                            }
+                            val msg = "bindService=${'$'}bindBoolResult (at ${'$'}bindStartTs) | onServiceConnected at ${'$'}ts (binderNonNull=${'$'}{service != null}) | ${'$'}unbindMsg"
+                            serviceBindProbeStatus[probeKey] = msg
+                            logEvent("[8. Bluetooth binding] bindService(${'$'}probeKey) -> ${'$'}msg")
+                            onHardwareStateChanged()
+                        }
+                    }
+
+                    override fun onNullBinding(name: ComponentName?) {
+                        if (callbackReceived.compareAndSet(false, true)) {
+                            pendingBindTimeoutRunnables.remove(probeKey)?.let { mainHandler.removeCallbacks(it) }
+                            val ts = nowTime()
+                            val unbindMsg = try {
+                                context.unbindService(this)
+                                "unbindService=ok"
+                            } catch (e: Throwable) {
+                                "unbindService=EXCEPTION(${'$'}{e.javaClass.name}: ${'$'}{e.message})"
+                            }
+                            val msg = "bindService=${'$'}bindBoolResult (at ${'$'}bindStartTs) | onNullBinding at ${'$'}ts | ${'$'}unbindMsg"
+                            serviceBindProbeStatus[probeKey] = msg
+                            logEvent("[8. Bluetooth binding] bindService(${'$'}probeKey) -> ${'$'}msg")
+                            onHardwareStateChanged()
+                        }
+                    }
+
+                    override fun onBindingDied(name: ComponentName?) {
+                        if (callbackReceived.compareAndSet(false, true)) {
+                            pendingBindTimeoutRunnables.remove(probeKey)?.let { mainHandler.removeCallbacks(it) }
+                            val ts = nowTime()
+                            val unbindMsg = try {
+                                context.unbindService(this)
+                                "unbindService=ok"
+                            } catch (e: Throwable) {
+                                "unbindService=EXCEPTION(${'$'}{e.javaClass.name}: ${'$'}{e.message})"
+                            }
+                            val msg = "bindService=${'$'}bindBoolResult (at ${'$'}bindStartTs) | onBindingDied at ${'$'}ts | ${'$'}unbindMsg"
+                            serviceBindProbeStatus[probeKey] = msg
+                            logEvent("[8. Bluetooth binding] bindService(${'$'}probeKey) -> ${'$'}msg")
+                            onHardwareStateChanged()
+                        }
+                    }
+
+                    override fun onServiceDisconnected(name: ComponentName?) {
+                        val ts = nowTime()
+                        logEvent("[8. Bluetooth binding] onServiceDisconnected(${'$'}probeKey) at ${'$'}ts")
+                    }
+                }
+
+                try {
+                    val explicitIntent = Intent(actionStr).apply {
+                        component = ComponentName(firstSvc.packageName, firstSvc.name)
+                    }
+                    bindBoolResult = context.bindService(explicitIntent, conn, Context.BIND_AUTO_CREATE)
+                    serviceBindProbeStatus[probeKey] = "bindService=${'$'}bindBoolResult (at ${'$'}bindStartTs) | waiting 10s for callback..."
+                    logEvent("[8. Bluetooth binding] bindService(${'$'}probeKey) -> returned ${'$'}bindBoolResult at ${'$'}bindStartTs")
+
+                    val timeoutRunnable = Runnable {
+                        pendingBindTimeoutRunnables.remove(probeKey)
+                        if (callbackReceived.compareAndSet(false, true)) {
+                            val ts = nowTime()
+                            val unbindMsg = try {
+                                context.unbindService(conn)
+                                "unbindService=ok"
+                            } catch (e: Throwable) {
+                                "unbindService=EXCEPTION(${'$'}{e.javaClass.name}: ${'$'}{e.message})"
+                            }
+                            val msg = "bindService=${'$'}bindBoolResult (at ${'$'}bindStartTs) | NO CALLBACK after 10s (at ${'$'}ts) | ${'$'}unbindMsg"
+                            serviceBindProbeStatus[probeKey] = msg
+                            logEvent("[8. Bluetooth binding] bindService(${'$'}probeKey) -> ${'$'}msg")
+                            onHardwareStateChanged()
+                        }
+                    }
+                    pendingBindTimeoutRunnables[probeKey] = timeoutRunnable
+                    mainHandler.postDelayed(timeoutRunnable, 10_000L)
+                } catch (e: Throwable) {
+                    val ts = nowTime()
+                    runCatching { context.unbindService(conn) }
+                    val msg = "EXCEPTION(${'$'}{e.javaClass.name}: ${'$'}{e.message}) at ${'$'}ts"
+                    serviceBindProbeStatus[probeKey] = msg
+                    logEvent("[8. Bluetooth binding] bindService(${'$'}probeKey) -> ${'$'}msg")
+                }
+            } catch (e: Throwable) {
+                val msg = "EXCEPTION(${'$'}{e.javaClass.name}: ${'$'}{e.message})"
+                serviceBindProbeStatus["query(${'$'}actionStr)"] = msg
+                logEvent("[8. Bluetooth binding] query/bind(${'$'}actionStr) -> ${'$'}msg")
+            }
+        }
+    }
+
     fun logBluetoothStackDiagnostics(trigger: String) {
+        runReadOnlyBluetoothBindingProbes()
         logEvent("--- BEGIN Bluetooth stack diagnostics (${'$'}trigger) ---")
         buildBluetoothStackDiagnosticsSnapshot().forEach { line ->
             logEvent(line)
         }
         logEvent("--- END Bluetooth stack diagnostics (${'$'}trigger) ---")
     }
-}""",
+}"""
         ),
         ExportableProjectFile(
             id = "switcher_viewmodel",
@@ -1511,7 +2059,7 @@ class LarkSwitcherViewModel(application: Application) : AndroidViewModel(applica
         super.onCleared()
         hardwareManager.release()
     }
-}""",
+}"""
         ),
         ExportableProjectFile(
             id = "apple_bt_components",
@@ -2425,7 +2973,7 @@ private fun SettingsSheetActionRow(
             color = AppleWhite
         )
     }
-}""",
+}"""
         ),
         ExportableProjectFile(
             id = "export_screen",
@@ -2921,7 +3469,7 @@ private fun shareTextContent(context: Context, subject: String, content: String)
         putExtra(Intent.EXTRA_TEXT, content)
     }
     context.startActivity(Intent.createChooser(sendIntent, "Export ${'$'}subject"))
-}""",
+}"""
         ),
         ExportableProjectFile(
             id = "theme_color",
@@ -2949,7 +3497,7 @@ val AppleRed = Color(0xFFFF453A)
 
 // Text Hierarchy
 val AppleWhite = Color(0xFFFFFFFF)
-val AppleSecondaryLabel = Color(0xFFEBEBF5)""",
+val AppleSecondaryLabel = Color(0xFFEBEBF5)"""
         ),
         ExportableProjectFile(
             id = "theme_type",
@@ -3030,7 +3578,7 @@ val Typography = Typography(
         fontSize = 12.sp,
         lineHeight = 16.sp
     )
-)""",
+)"""
         ),
         ExportableProjectFile(
             id = "theme_main",
@@ -3074,7 +3622,7 @@ fun MyApplicationTheme(
         typography = Typography,
         content = content
     )
-}""",
+}"""
         ),
         ExportableProjectFile(
             id = "android_manifest",
@@ -3142,7 +3690,7 @@ fun MyApplicationTheme(
         </activity>
     </application>
 
-</manifest>""",
+</manifest>"""
         ),
         ExportableProjectFile(
             id = "app_build_gradle",
@@ -3293,7 +3841,7 @@ dependencies {
   debugImplementation(libs.androidx.compose.ui.tooling)
   // "ksp"(libs.androidx.room.compiler)
   // "ksp"(libs.moshi.kotlin.codegen)
-}""",
+}"""
         ),
         ExportableProjectFile(
             id = "settings_gradle",
@@ -3327,7 +3875,7 @@ dependencyResolutionManagement {
 
 rootProject.name = "LarkBT Switcher"
 
-include(":app")""",
+include(":app")"""
         ),
         ExportableProjectFile(
             id = "github_workflow",
